@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
 import * as dotenv from "dotenv";
-import OpenAI from "openai";
+import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "crypto";
 import PDFDocument from "pdfkit";
@@ -18,8 +18,8 @@ const PORT = Number(process.env.PORT || 3000);
 
 app.use(express.json());
 
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const gemini = process.env.GEMINI_API_KEY
+  ? new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY })
   : null;
 
 // Initialize Supabase Admin
@@ -56,6 +56,15 @@ When the essay is not a literature essay, adapt these principles to the task: fo
 argument quality, evidence, paragraph development, structure, language precision and reader impact.
 Keep the feedback concise, specific and revision-oriented.
 `;
+
+function parseJsonObjectFromModel(text: string) {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+
+  return JSON.parse(cleaned);
+}
 
 function getBearerToken(req: express.Request) {
   const header = req.headers.authorization || "";
@@ -944,20 +953,15 @@ app.post("/api/ai-feedback", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  if (!openai) {
-    return res.status(500).json({ error: "OPENAI_API_KEY is not configured" });
+  if (!gemini) {
+    return res.status(500).json({ error: "GEMINI_API_KEY is not configured" });
   }
 
   try {
     const admin = getSupabaseAdmin();
     const { essay, session } = await requireTeacherForEssay(req, essayId);
 
-    const response = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are an expert H2 Malay Language and Literature writing mentor.
+    const systemInstruction = `You are an expert H2 Malay Language and Literature writing mentor.
 
 ${H2MLL_LITERATURE_RUBRIC_GUIDANCE}
 
@@ -971,24 +975,27 @@ Format your response as a JSON object with these keys:
 - grammar_notes: 1 short sentence on language precision only if useful; otherwise say "No major language issue in this draft."
 - structure_notes: 1 sentence on paragraph focus, coherence or flow.
 - paragraph_feedback: an array of at most 2 objects. Each object must have paragraph_number, focus, feedback, next_revision. Each value should be short.
-- next_step: 1 concrete revision action in no more than 20 words.`
-        },
-        {
-          role: "user",
-          content: `Essay Prompt: ${session.question_prompt || "No prompt supplied."}
+- next_step: 1 concrete revision action in no more than 20 words.`;
+
+    const prompt = `Essay Prompt: ${session.question_prompt || "No prompt supplied."}
 
 Assess the draft against the rubric lens based only on what is written.
 If the draft is one paragraph, give feedback for that paragraph only.
 Keep the total feedback brief enough for a student to read quickly.
 
 Essay Content:
-${getDisplayEssayContent(essay.content) || "No essay content supplied."}`
-        }
-      ],
-      response_format: { type: "json_object" }
+${getDisplayEssayContent(essay.content) || "No essay content supplied."}`;
+
+    const response = await gemini.models.generateContent({
+      model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview",
+      contents: prompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+      },
     });
 
-    const feedbackData = JSON.parse(response.choices[0].message.content || "{}");
+    const feedbackData = parseJsonObjectFromModel(response.text || "{}");
 
     const { data, error } = await admin
       .from(TABLES.essays)

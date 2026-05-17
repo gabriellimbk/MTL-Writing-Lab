@@ -153,7 +153,7 @@ export default function Landing() {
         </div>
 
         <div className="pt-8 md:pt-20 text-[10px] font-bold text-slate-300 uppercase tracking-[0.4em]">
-          Powered by Supabase + OpenAI
+          Powered by Supabase + Gemini
         </div>
       </motion.div>
     </div>

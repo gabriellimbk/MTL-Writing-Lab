@@ -13,8 +13,8 @@ VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.1-flash-lite-preview
 APP_URL=http://localhost:3000
 TEACHER_SHARED_PASSWORD=Password1
 ```
@@ -40,6 +40,11 @@ Password1
 ```
 
 The app creates the Supabase Auth teacher user automatically on first login.
+
+Where to find the Gemini value:
+
+- `GEMINI_API_KEY`: Google AI Studio > Get API key.
+- `GEMINI_MODEL`: defaults to `gemini-3.1-flash-lite-preview`.
 
 After creating `.env`, run:
 

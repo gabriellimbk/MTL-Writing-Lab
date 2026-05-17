@@ -6,7 +6,7 @@ A classroom writing app for live essay practice, teacher-controlled sessions, AI
 
 Writing Lab is designed for a small live classroom writing lesson with one teacher console and multiple student consoles. Students join using a short session code, wait for the teacher to begin, then write an essay response to the selected question.
 
-The intended classroom scale is modest: up to about 20 students per session and roughly 2 classes. The app is built to be easy to test, inspect, and adapt, using Vercel-compatible React/Express code, Supabase for persistence, and OpenAI for feedback.
+The intended classroom scale is modest: up to about 20 students per session and roughly 2 classes. The app is built to be easy to test, inspect, and adapt, using Vercel-compatible React/Express code, Supabase for persistence, and Gemini for feedback.
 
 ## Lesson Workflow
 
@@ -95,7 +95,7 @@ The app is intentionally constrained to three Supabase tables:
 - Frontend: React, Vite, Tailwind CSS, React Router.
 - Backend: Express server in `server.ts`.
 - Database/Auth: Supabase.
-- AI: OpenAI Chat Completions API.
+- AI: Gemini API.
 - Realtime/session refresh: polling server endpoints for session state, plus Supabase-backed persistence.
 - Display mode: `/display/:essayId`, now loaded through a server endpoint instead of direct browser Supabase reads.
 
@@ -121,8 +121,8 @@ VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-3.1-flash-lite-preview
 APP_URL=http://localhost:3000
 TEACHER_SHARED_PASSWORD=Password1
 ```
