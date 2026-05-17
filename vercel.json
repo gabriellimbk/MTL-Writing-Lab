@@ -6,6 +6,10 @@
       "use": "@vercel/node"
     },
     {
+      "src": "api/diag-*.ts",
+      "use": "@vercel/node"
+    },
+    {
       "src": "api/[...path].ts",
       "use": "@vercel/node"
     },
@@ -21,6 +25,10 @@
     {
       "src": "/api/health",
       "dest": "/api/health.ts"
+    },
+    {
+      "src": "/api/diag-(.*)",
+      "dest": "/api/diag-$1.ts"
     },
     {
       "src": "/api/(.*)",
