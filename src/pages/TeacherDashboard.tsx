@@ -17,6 +17,7 @@ export default function TeacherDashboard() {
   const [errorMessage, setErrorMessage] = useState('');
   const [deletingSessionId, setDeletingSessionId] = useState('');
   const [deletingQuestionId, setDeletingQuestionId] = useState('');
+  const [viewingQuestion, setViewingQuestion] = useState<any>(null);
 
   // Modal states
   const [showQuestionModal, setShowQuestionModal] = useState(false);
@@ -211,7 +212,19 @@ export default function TeacherDashboard() {
             </div>
             <div className="space-y-1">
               {questions.map(q => (
-                <div key={q.id} className="flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group border border-transparent hover:border-slate-100">
+                <div
+                  key={q.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setViewingQuestion(q)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setViewingQuestion(q);
+                    }
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group border border-transparent hover:border-slate-100 text-left cursor-pointer focus:outline-none focus:border-brand-300 focus:bg-slate-50"
+                >
                   <BookOpen className="w-4 h-4 text-slate-400 group-hover:text-brand-500 shrink-0" />
                   <span className="text-sm font-semibold text-slate-600 truncate group-hover:text-slate-900 flex-1 min-w-0">{q.question_title}</span>
                   <button
@@ -345,7 +358,7 @@ export default function TeacherDashboard() {
 
       {/* Modals */}
       <AnimatePresence>
-        {(showQuestionModal || showSessionModal) && (
+        {(showQuestionModal || showSessionModal || viewingQuestion) && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -357,6 +370,29 @@ export default function TeacherDashboard() {
               animate={{ scale: 1, y: 0 }}
               className="bg-white p-10 rounded-2xl w-full max-w-md border border-slate-200 shadow-2xl"
             >
+              {viewingQuestion && (
+                <>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-500 mb-3">Essay Prompt</p>
+                  <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-6">
+                    {viewingQuestion.question_title}
+                  </h3>
+                  <div className="max-h-[45vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-5">
+                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-600 font-medium">
+                      {viewingQuestion.question_prompt || 'No writing prompt was saved for this title.'}
+                    </p>
+                  </div>
+                  <div className="flex gap-4 pt-8">
+                    <button
+                      type="button"
+                      onClick={() => setViewingQuestion(null)}
+                      className="flex-1 py-4 bg-slate-900 text-white rounded-lg font-bold text-xs uppercase tracking-widest shadow-lg"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+
               {showQuestionModal && (
                 <>
                   <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-2">Add Prompt</h3>
