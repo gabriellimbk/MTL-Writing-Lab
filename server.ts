@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import { fileURLToPath } from "url";
 import * as dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
@@ -1126,8 +1125,11 @@ app.post("/api/peer-comment", async (req, res) => {
   }
 });
 
+export default app;
+
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -1146,4 +1148,6 @@ async function startServer() {
   });
 }
 
-startServer();
+if (process.env.VERCEL !== "1") {
+  startServer();
+}
