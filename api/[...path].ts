@@ -4,7 +4,7 @@ export const config = {
 
 export default async function handler(req: any, res: any) {
   try {
-    const { default: app } = await import("../server");
+    const { default: app } = await import("../server.ts");
     return app(req, res);
   } catch (error: any) {
     console.error("API handler failed to load", error);
