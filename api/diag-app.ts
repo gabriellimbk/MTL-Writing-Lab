@@ -1,6 +1,6 @@
 export default async function handler(_req: any, res: any) {
   try {
-    const mod = await import("../app");
+    const mod = await import("./app");
     res.status(200).json({
       status: "ok",
       dependency: "app",

@@ -1,6 +1,6 @@
 import path from "path";
 import { pathToFileURL } from "url";
-import app from "./app.ts";
+import app from "./api/app";
 
 const PORT = Number(process.env.PORT || 3000);
 
