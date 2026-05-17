@@ -57,48 +57,69 @@ export default function TeacherDashboard() {
 
   async function createQuestion(e: React.FormEvent) {
     e.preventDefault();
-    const { data, error } = await supabase.from(TABLES.sessions).insert({
-      record_type: 'question',
-      question_title: newQuestionTitle.trim(),
-      question_prompt: newQuestionPrompt.trim(),
-      teacher_id: user?.id
-    }).select().single();
+    setErrorMessage('');
 
-    if (error) {
-      setErrorMessage(error.message);
+    try {
+      const token = await getTeacherToken();
+      const response = await fetch('/api/teacher/question', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: newQuestionTitle,
+          prompt: newQuestionPrompt
+        })
+      });
+      const body = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(body.error || 'Could not save prompt.');
+      }
+
+      if (body.question) {
+        setQuestions([body.question, ...questions]);
+        setShowQuestionModal(false);
+        setNewQuestionTitle('');
+        setNewQuestionPrompt('');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message);
       return;
-    }
-
-    if (data) {
-      setQuestions([data, ...questions]);
-      setShowQuestionModal(false);
-      setNewQuestionTitle('');
-      setNewQuestionPrompt('');
     }
   }
 
   async function createSession(e: React.FormEvent) {
     e.preventDefault();
     const code = nanoid(6).toUpperCase();
-    const selectedQuestion = questions.find(q => String(q.id) === selectedQuestionId);
+    setErrorMessage('');
 
-    const { data, error } = await supabase.from(TABLES.sessions).insert({
-      record_type: 'session',
-      source_question_id: selectedQuestionId,
-      question_title: selectedQuestion?.question_title || '',
-      question_prompt: selectedQuestion?.question_prompt || '',
-      teacher_id: user?.id,
-      session_code: code,
-      status: 'waiting'
-    }).select().single();
+    try {
+      const token = await getTeacherToken();
+      const response = await fetch('/api/teacher/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          questionId: selectedQuestionId,
+          sessionCode: code
+        })
+      });
+      const body = await response.json().catch(() => ({}));
 
-    if (error) {
-      setErrorMessage(error.message);
+      if (!response.ok) {
+        throw new Error(body.error || 'Could not create session.');
+      }
+
+      if (body.session) {
+        navigate(`/teacher/session/${body.session.id}`);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message);
       return;
-    }
-
-    if (data) {
-      navigate(`/teacher/session/${data.id}`);
     }
   }
 

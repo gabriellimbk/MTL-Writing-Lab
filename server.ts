@@ -374,6 +374,81 @@ app.get("/api/teacher/dashboard", async (req, res) => {
   }
 });
 
+app.post("/api/teacher/question", async (req, res) => {
+  const { title, prompt } = req.body;
+  const questionTitle = String(title || "").trim();
+  const questionPrompt = String(prompt || "").trim();
+
+  if (!questionTitle || !questionPrompt) {
+    return res.status(400).json({ error: "Question title and prompt are required" });
+  }
+
+  try {
+    const admin = getSupabaseAdmin();
+    const user = await getAuthenticatedUser(req);
+
+    const { data, error } = await admin
+      .from(TABLES.sessions)
+      .insert({
+        record_type: "question",
+        question_title: questionTitle,
+        question_prompt: questionPrompt,
+        teacher_id: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, question: data });
+  } catch (error: any) {
+    res.status(error.message?.includes("authorization") ? 403 : 500).json({ error: error.message });
+  }
+});
+
+app.post("/api/teacher/session", async (req, res) => {
+  const { questionId, sessionCode } = req.body;
+  const normalizedSessionCode = String(sessionCode || "").trim().toUpperCase();
+
+  if (!questionId || !normalizedSessionCode) {
+    return res.status(400).json({ error: "Question and session code are required" });
+  }
+
+  try {
+    const admin = getSupabaseAdmin();
+    const user = await getAuthenticatedUser(req);
+
+    const { data: selectedQuestion, error: questionError } = await admin
+      .from(TABLES.sessions)
+      .select("id, question_title, question_prompt")
+      .eq("id", questionId)
+      .eq("record_type", "question")
+      .single();
+
+    if (questionError || !selectedQuestion) throw new Error("Prompt not found");
+
+    const { data, error } = await admin
+      .from(TABLES.sessions)
+      .insert({
+        record_type: "session",
+        source_question_id: selectedQuestion.id,
+        question_title: selectedQuestion.question_title || "",
+        question_prompt: selectedQuestion.question_prompt || "",
+        teacher_id: user.id,
+        session_code: normalizedSessionCode,
+        status: "waiting",
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, session: data });
+  } catch (error: any) {
+    res.status(error.message?.includes("authorization") ? 403 : 500).json({ error: error.message });
+  }
+});
+
 app.post("/api/student/join", async (req, res) => {
   const { code, displayName, studentId: existingStudentId, studentToken: existingStudentToken } = req.body;
   const normalizedCode = String(code || "").trim().toUpperCase();

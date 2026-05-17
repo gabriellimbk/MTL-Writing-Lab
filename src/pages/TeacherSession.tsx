@@ -24,9 +24,26 @@ export default function TeacherSession() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { session, students, essays } = useSessionRealtime(id);
+  const { session, students, essays, error: sessionLoadError } = useSessionRealtime(id);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+
+  if (!session && sessionLoadError) return (
+    <div className="h-screen flex items-center justify-center bg-[#f4f5f2] p-6">
+      <div className="max-w-md rounded-2xl border border-red-100 bg-white p-8 shadow-geometric text-center">
+        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500 mb-3">Session Load Failed</p>
+        <h1 className="text-2xl font-black text-slate-900 mb-3">Could not open this session</h1>
+        <p className="text-sm text-slate-500 leading-relaxed mb-6">{sessionLoadError}</p>
+        <button
+          type="button"
+          onClick={() => navigate('/teacher')}
+          className="px-5 py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg"
+        >
+          Back to Dashboard
+        </button>
+      </div>
+    </div>
+  );
 
   if (!session) return (
     <div className="h-screen flex items-center justify-center bg-[#f4f5f2]">
