@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
 import FeedbackContent from '../components/FeedbackContent';
 import FeedbackAccordion from '../components/FeedbackAccordion';
+import { getOverallExaminerComment } from '../lib/feedback';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -593,8 +594,8 @@ export default function StudentEditor() {
                       icon={<BookOpen className="w-4 h-4" />} 
                     />
                     <AnalysisCard
-                      title="Authenticity and Consistency"
-                      content={feedback.grammar_notes}
+                      title="Overall Examiner Comment"
+                      content={getOverallExaminerComment(feedback)}
                       theme="slate"
                       icon={<MessageSquare className="w-4 h-4" />}
                     />
@@ -710,7 +711,7 @@ export default function StudentEditor() {
                 { title: 'What is Limiting the Score', content: feedback.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
                 { title: 'How to Reach the Next Band', content: feedback.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
                 { title: 'Estimated Rubric Alignment', content: feedback.structure_notes, icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
-                { title: 'Authenticity and Consistency', content: feedback.grammar_notes, icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
+                { title: 'Overall Examiner Comment', content: getOverallExaminerComment(feedback), icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
               ]} />
               {paragraphFeedback.length > 0 && (
                 <div className="p-5 rounded-xl border bg-white border-slate-200 space-y-3">

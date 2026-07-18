@@ -81,7 +81,8 @@ Return only a JSON object with these keys:
 - strengths: "What is Working" with 2 to 3 specific strengths.
 - improvements: "What is Limiting the Score" explaining the biggest Content weakness and biggest Language weakness.
 - next_step: "How to Reach the Next Band" with one concrete improvement and a short example based on the student's topic, not a full rewrite.
-- structure_notes: "Estimated Rubric Alignment" with Content band and reason, Language band and reason, and an overall examiner comment. Do not give exact marks.
+- structure_notes: "Estimated Rubric Alignment" with Content band and reason, and Language band and reason. Do not give exact marks.
+- overall_comment: "Overall Examiner Comment" with a short 1–2 sentence summary describing what is preventing the essay from reaching a higher band.
 - grammar_notes: "Authenticity Check and Writing Consistency Analysis". If no previous samples are provided, say the consistency estimate has lower confidence because no previous samples are available.
 - paragraph_feedback: an empty array unless a very short paragraph-specific note is essential.
 
@@ -130,6 +131,7 @@ function normalizeAiFeedback(feedback: any) {
     improvements: formatFeedbackValue(feedback?.improvements),
     next_step: formatFeedbackValue(feedback?.next_step),
     structure_notes: formatFeedbackValue(feedback?.structure_notes),
+    overall_comment: formatFeedbackValue(feedback?.overall_comment),
     grammar_notes: formatFeedbackValue(feedback?.grammar_notes),
     paragraph_feedback: Array.isArray(feedback?.paragraph_feedback) ? feedback.paragraph_feedback : [],
   };
@@ -399,7 +401,7 @@ function addCompactFeedback(doc: PDFKit.PDFDocument, feedback: any) {
   pdfLabel(doc, "What is Limiting the Score", feedback.improvements);
   pdfLabel(doc, "How to Reach the Next Band", feedback.next_step);
   pdfLabel(doc, "Estimated Rubric Alignment", feedback.structure_notes);
-  pdfLabel(doc, "Authenticity and Consistency", feedback.grammar_notes);
+  pdfLabel(doc, "Overall Examiner Comment", feedback.overall_comment || feedback.structure_notes);
 
   const paragraphFeedback = Array.isArray(feedback.paragraph_feedback) ? feedback.paragraph_feedback : [];
   if (paragraphFeedback.length > 0) {
