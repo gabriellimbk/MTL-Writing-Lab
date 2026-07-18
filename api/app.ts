@@ -30,23 +30,58 @@ const CONTINUATION_BREAK_PATTERN = /\n*\[\[WRITING_LAB_CONTINUE_BREAK\]\]\n*/g;
 
 const TEACHER_EMAIL_DOMAIN = "@ri.edu.sg";
 const TEACHER_SHARED_PASSWORD = process.env.TEACHER_SHARED_PASSWORD || "Password1";
+const MIN_TIMER_MINUTES = 1;
+const MAX_TIMER_MINUTES = 240;
 
-const H2MLL_LITERATURE_RUBRIC_GUIDANCE = `
-Use the H2 Malay Language and Literature Paper 3 literature rubric as the marking lens.
-Judge only what the student has actually written. Most students may submit one short paragraph,
-so do not write a full essay report unless the submission is long enough to justify it.
-Focus on whether the writing:
-- answers the question directly with a critical, personal, knowledgeable response;
-- analyses how the writer/text uses form, structure and language to convey meaning;
-- evaluates the effects of style, language and structure instead of only retelling content;
-- develops relevant arguments in a focused, detailed and coherent way;
-- shows understanding of literary context such as theme, genre, period, history and issue;
-- supports claims with specific references, quotations or paraphrases from the text;
-- uses critical terminology accurately and expresses complex ideas clearly.
+const H2_MLL_PAPER1_EXAMINER_PROMPT = `
+You are an experienced Singapore GCE A-Level H2 Malay Language and Literature (9576) examiner.
+Evaluate the student's essay using the official Paper 1 criteria for:
 
-When the essay is not a literature essay, adapt these principles to the task: focus on relevance,
-argument quality, evidence, paragraph development, structure, language precision and reader impact.
-Keep the feedback concise, specific and revision-oriented.
+A. CONTENT (ISI)
+- Relevance to the question
+- Sufficiency of ideas
+- Depth of development
+- Persuasiveness
+- Originality and creativity
+- Coherence and organization
+
+CONTENT (17 marks)
+Band 1 (13-17m): Highly relevant ideas; sufficient and insightful content; strong elaboration and convincing development; original, imaginative and creative; appropriate examples and meaningful details.
+Band 2 (9-13m): Relevant ideas; sufficient content; generally convincing development; some originality and creativity.
+Band 3 (4-8m): Adequate relevance; limited development; repetitive or less interesting ideas.
+Band 4 (1-3m): Irrelevant, shallow or unclear content; weak development.
+
+B. LANGUAGE (BAHASA)
+- Paragraphing and organisation
+- Grammar and syntax
+- Vocabulary range and accuracy
+- Sentence variety and complexity
+- Fluency and clarity
+
+LANGUAGE (18 marks)
+Band 1 (12-18m): Excellent organisation and paragraphing; accurate grammar; wide and precise vocabulary; effective use of complex sentences.
+Band 2 (7-11m): Good organisation; minor language errors; adequate vocabulary range.
+Band 3 (5-6m): Moderate language control; frequent errors; limited vocabulary.
+Band 4 (1-4m): Weak language control; numerous grammar and vocabulary errors.
+
+Based only on the essay question and student writing, generate evidence-based feedback. Do not give exact marks. Do not criticise every mistake. Focus on changes most likely to improve examination performance. Limit the combined response to 200 words.
+
+DRAFT AND PARTIAL-WRITING RULE:
+Students may submit a complete essay or a partial piece of writing. Judge only the writing that is present. Do not penalise students for missing sections that are not expected in the submitted draft. If the response is incomplete, estimate achievement based on observable evidence only. Treat the evaluation as a pro-rated estimate of the H2 MLL Paper 1 rubric rather than a final examination score. If important evidence is missing because the piece is incomplete, explicitly state that the estimate has lower confidence.
+
+Authenticity Check:
+Comment briefly on whether the writing appears Highly Personalised, Mostly Personalised, or Generic or Template-Like.
+
+Writing Consistency Analysis:
+If previous writing samples from the same student are available, compare the current submission against the student's historical writing profile. Consider vocabulary sophistication, grammar accuracy, sentence complexity, argument development, evaluation skills, paragraph organisation, writing style and tone. Categorise as Consistent, Mild Shift Detected, or Significant Shift Detected. Give observations and confidence: Low, Medium, or High. Do not state that AI was used. Do not accuse the student of misconduct. Use neutral language such as "writing profile shift" or "writing inconsistency".
+
+Return only a JSON object with these keys:
+- strengths: "What is Working" with 2 to 3 specific strengths.
+- improvements: "What is Limiting the Score" explaining the biggest Content weakness and biggest Language weakness.
+- next_step: "How to Reach the Next Band" with one concrete improvement and a short example based on the student's topic, not a full rewrite.
+- structure_notes: "Estimated Rubric Alignment" with Content band and reason, Language band and reason, and an overall examiner comment. Do not give exact marks.
+- grammar_notes: "Authenticity Check and Writing Consistency Analysis". If no previous samples are provided, say the consistency estimate has lower confidence because no previous samples are available.
+- paragraph_feedback: an empty array unless a very short paragraph-specific note is essential.
 `;
 
 function parseJsonObjectFromModel(text: string) {
@@ -136,7 +171,7 @@ async function requireTeacherForEssay(req: express.Request, essayId: string, opt
   const user = await getAuthenticatedUser(req);
   const { data: essay, error: essayError } = await admin
     .from(TABLES.essays)
-    .select("id, session_id, content")
+    .select("id, session_id, student_id, content")
     .eq("id", essayId)
     .single();
 
@@ -144,7 +179,7 @@ async function requireTeacherForEssay(req: express.Request, essayId: string, opt
 
   const { data: session, error: sessionError } = await admin
     .from(TABLES.sessions)
-    .select("id, teacher_id, question_prompt")
+    .select("id, teacher_id, question_title, question_prompt")
     .eq("id", essay.session_id)
     .single();
 
@@ -171,6 +206,80 @@ async function validateStudentSession(sessionId: string | number, studentId: str
   if (error || !student) throw new Error("Invalid student session");
 
   return student;
+}
+
+function normalizeTimerMinutes(value: any) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const minutes = Math.round(Number(value));
+  if (!Number.isFinite(minutes)) {
+    throw new Error("Invalid timer duration");
+  }
+  if (minutes < MIN_TIMER_MINUTES || minutes > MAX_TIMER_MINUTES) {
+    throw new Error(`Timer must be between ${MIN_TIMER_MINUTES} and ${MAX_TIMER_MINUTES} minutes`);
+  }
+
+  return minutes;
+}
+
+function getTimerFields(timerMinutes: number | null) {
+  if (!timerMinutes) {
+    return {
+      timer_duration_minutes: null,
+      timer_started_at: null,
+      timer_ends_at: null,
+    };
+  }
+
+  const startedAt = new Date();
+  const endsAt = new Date(startedAt.getTime() + timerMinutes * 60 * 1000);
+
+  return {
+    timer_duration_minutes: timerMinutes,
+    timer_started_at: startedAt.toISOString(),
+    timer_ends_at: endsAt.toISOString(),
+  };
+}
+
+function isExpiredActiveSession(session: any) {
+  if (!session || session.status !== "active" || !session.timer_ends_at) return false;
+  const endsAt = new Date(session.timer_ends_at).getTime();
+  return Number.isFinite(endsAt) && Date.now() >= endsAt;
+}
+
+async function markSessionEnded(sessionId: string | number, endedAt = new Date().toISOString()) {
+  const admin = getSupabaseAdmin();
+
+  const { error: sessionError } = await admin
+    .from(TABLES.sessions)
+    .update({
+      status: "ended",
+      ended_at: endedAt,
+      updated_at: endedAt,
+    })
+    .eq("id", sessionId)
+    .eq("status", "active");
+  if (sessionError) throw sessionError;
+
+  const { error: essayError } = await admin
+    .from(TABLES.essays)
+    .update({ is_submitted: true, updated_at: endedAt })
+    .eq("session_id", sessionId);
+  if (essayError) throw essayError;
+}
+
+async function autoEndExpiredSession(session: any) {
+  if (!isExpiredActiveSession(session)) return session;
+
+  const endedAt = new Date().toISOString();
+  await markSessionEnded(session.id, endedAt);
+
+  return {
+    ...session,
+    status: "ended",
+    ended_at: endedAt,
+    updated_at: endedAt,
+  };
 }
 
 function cleanPdfText(value: any) {
@@ -244,11 +353,11 @@ function addCompactFeedback(doc: PDFKit.PDFDocument, feedback: any) {
     return;
   }
 
-  pdfLabel(doc, "Strengths", feedback.strengths);
-  pdfLabel(doc, "Improvements", feedback.improvements);
-  pdfLabel(doc, "Structure", feedback.structure_notes);
-  pdfLabel(doc, "Language", feedback.grammar_notes);
-  pdfLabel(doc, "Next Step", feedback.next_step);
+  pdfLabel(doc, "What is Working", feedback.strengths);
+  pdfLabel(doc, "What is Limiting the Score", feedback.improvements);
+  pdfLabel(doc, "How to Reach the Next Band", feedback.next_step);
+  pdfLabel(doc, "Estimated Rubric Alignment", feedback.structure_notes);
+  pdfLabel(doc, "Authenticity and Consistency", feedback.grammar_notes);
 
   const paragraphFeedback = Array.isArray(feedback.paragraph_feedback) ? feedback.paragraph_feedback : [];
   if (paragraphFeedback.length > 0) {
@@ -357,10 +466,12 @@ app.get("/api/teacher/dashboard", async (req, res) => {
     if (questionsError) throw questionsError;
     if (sessionsError) throw sessionsError;
 
+    const normalizedSessions = await Promise.all((sessions || []).map((session: any) => autoEndExpiredSession(session)));
+
     res.json({
       success: true,
       questions: questions || [],
-      sessions: sessions || []
+      sessions: normalizedSessions
     });
   } catch (error: any) {
     res.status(error.message?.includes("authorization") ? 403 : 500).json({ error: error.message });
@@ -453,16 +564,17 @@ app.post("/api/student/join", async (req, res) => {
 
   try {
     const admin = getSupabaseAdmin();
-    const { data: session, error: sessionError } = await admin
+    const { data: loadedSession, error: sessionError } = await admin
       .from(TABLES.sessions)
       .select("*")
       .eq("record_type", "session")
       .eq("session_code", normalizedCode)
       .single();
 
-    if (sessionError || !session) {
+    if (sessionError || !loadedSession) {
       return res.status(404).json({ error: "Session not found. Please check your code." });
     }
+    const session = await autoEndExpiredSession(loadedSession);
 
     if (!["waiting", "active"].includes(session.status)) {
       return res.status(400).json({ error: "This session is no longer open for joining." });
@@ -535,12 +647,20 @@ app.get("/api/student/state", async (req, res) => {
     const admin = getSupabaseAdmin();
     await validateStudentSession(sessionId, studentId, studentToken);
 
-    const [{ data: session, error: sessionError }, { data: essay, error: essayError }] = await Promise.all([
-      admin.from(TABLES.sessions).select("*").eq("id", sessionId).single(),
-      admin.from(TABLES.essays).select("*").eq("session_id", sessionId).eq("student_id", studentId).single()
-    ]);
+    const { data: loadedSession, error: sessionError } = await admin
+      .from(TABLES.sessions)
+      .select("*")
+      .eq("id", sessionId)
+      .single();
+    if (sessionError || !loadedSession) throw new Error("Session not found");
+    const session = await autoEndExpiredSession(loadedSession);
 
-    if (sessionError || !session) throw new Error("Session not found");
+    const { data: essay, error: essayError } = await admin
+      .from(TABLES.essays)
+      .select("*")
+      .eq("session_id", sessionId)
+      .eq("student_id", studentId)
+      .single();
     if (essayError || !essay) throw new Error("Essay not found");
 
     const peerComments = await enrichCommentsWithNames(
@@ -678,13 +798,14 @@ app.post("/api/student/essay", async (req, res) => {
     const admin = getSupabaseAdmin();
     await validateStudentSession(sessionId, studentId, studentToken);
 
-    const { data: session, error: sessionError } = await admin
+    const { data: loadedSession, error: sessionError } = await admin
       .from(TABLES.sessions)
-      .select("id, status")
+      .select("*")
       .eq("id", sessionId)
       .single();
 
-    if (sessionError || !session) throw new Error("Session not found");
+    if (sessionError || !loadedSession) throw new Error("Session not found");
+    const session = await autoEndExpiredSession(loadedSession);
     if (session.status !== "active") {
       return res.status(403).json({ error: "This writing session is not active." });
     }
@@ -724,7 +845,7 @@ app.post("/api/student/essay", async (req, res) => {
 });
 
 app.post("/api/session/status", async (req, res) => {
-  const { sessionId, status } = req.body;
+  const { sessionId, status, timerMinutes } = req.body;
   const allowedStatuses = new Set(["waiting", "active", "ended", "peer_review", "returned"]);
 
   if (!sessionId || !allowedStatuses.has(status)) {
@@ -735,8 +856,17 @@ app.post("/api/session/status", async (req, res) => {
     const admin = getSupabaseAdmin();
     await requireTeacherForSession(req, sessionId);
 
-    const update: Record<string, string> = { status };
-    if (status === "ended") update.ended_at = new Date().toISOString();
+    const update: Record<string, any> = { status, updated_at: new Date().toISOString() };
+    if (status === "active") {
+      const normalizedTimerMinutes = normalizeTimerMinutes(timerMinutes);
+      Object.assign(update, getTimerFields(normalizedTimerMinutes));
+      update.started_at = update.timer_started_at || new Date().toISOString();
+      update.ended_at = null;
+    }
+    if (status === "ended") {
+      await markSessionEnded(sessionId);
+      return res.json({ success: true });
+    }
 
     const { error: sessionError } = await admin
       .from(TABLES.sessions)
@@ -744,15 +874,6 @@ app.post("/api/session/status", async (req, res) => {
       .eq("id", sessionId);
 
     if (sessionError) throw sessionError;
-
-    if (status === "ended") {
-      const { error: essayError } = await admin
-        .from(TABLES.essays)
-        .update({ is_submitted: true, updated_at: new Date().toISOString() })
-        .eq("session_id", sessionId);
-
-      if (essayError) throw essayError;
-    }
 
     res.json({ success: true });
   } catch (error: any) {
@@ -773,7 +894,7 @@ app.post("/api/session/continue", async (req, res) => {
 
     const { data: session, error: sessionError } = await admin
       .from(TABLES.sessions)
-      .select("id, status")
+      .select("id, status, timer_duration_minutes")
       .eq("id", sessionId)
       .single();
 
@@ -802,9 +923,17 @@ app.post("/api/session/continue", async (req, res) => {
     const updateError = results.find(result => result.error)?.error;
     if (updateError) throw updateError;
 
+    const continuedTimerMinutes = normalizeTimerMinutes(session.timer_duration_minutes);
+    const continuedTimerFields = getTimerFields(continuedTimerMinutes);
     const { error: statusError } = await admin
       .from(TABLES.sessions)
-      .update({ status: "active", updated_at: new Date().toISOString() })
+      .update({
+        status: "active",
+        ended_at: null,
+        started_at: continuedTimerFields.timer_started_at || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...continuedTimerFields,
+      })
       .eq("id", sessionId);
     if (statusError) throw statusError;
 
@@ -878,17 +1007,23 @@ app.get("/api/teacher/session-state", async (req, res) => {
     const admin = getSupabaseAdmin();
     await requireTeacherForSession(req, sessionId, { ownerOnly: false });
 
+    const { data: loadedSession, error: sessionError } = await admin
+      .from(TABLES.sessions)
+      .select("*")
+      .eq("id", sessionId)
+      .eq("record_type", "session")
+      .single();
+    if (sessionError || !loadedSession) throw new Error("Session not found");
+    const session = await autoEndExpiredSession(loadedSession);
+
     const [
-      { data: session, error: sessionError },
       { data: students, error: studentsError },
       { data: essays, error: essaysError }
     ] = await Promise.all([
-      admin.from(TABLES.sessions).select("*").eq("id", sessionId).eq("record_type", "session").single(),
       admin.from(TABLES.students).select("*").eq("session_id", sessionId).order("created_at", { ascending: true }),
       admin.from(TABLES.essays).select("*").eq("session_id", sessionId).order("created_at", { ascending: true })
     ]);
 
-    if (sessionError || !session) throw new Error("Session not found");
     if (studentsError) throw studentsError;
     if (essaysError) throw essaysError;
 
@@ -1026,38 +1161,58 @@ app.post("/api/ai-feedback", async (req, res) => {
 
   try {
     const admin = getSupabaseAdmin();
-    const { essay, session } = await requireTeacherForEssay(req, essayId);
+    const { user, essay, session } = await requireTeacherForEssay(req, essayId);
 
-    const systemInstruction = `You are an expert H2 Malay Language and Literature writing mentor.
+    const { data: teacherSessions } = await admin
+      .from(TABLES.sessions)
+      .select("id")
+      .eq("teacher_id", user.id)
+      .eq("record_type", "session");
 
-${H2MLL_LITERATURE_RUBRIC_GUIDANCE}
+    const teacherSessionIds = (teacherSessions || []).map((item: any) => item.id);
+    let previousWritingSamples: any[] = [];
 
-Give short, classroom-usable feedback for a student who may only have written one paragraph.
-Avoid generic praise and avoid long commentary. Do not invent missing content or assume a full essay
-structure when the student only submitted a paragraph.
+    if (teacherSessionIds.length > 0 && essay.student_id) {
+      const { data: previousEssays, error: previousEssaysError } = await admin
+        .from(TABLES.essays)
+        .select("id, session_id, content, created_at")
+        .eq("student_id", essay.student_id)
+        .in("session_id", teacherSessionIds)
+        .neq("id", essay.id)
+        .order("created_at", { ascending: false })
+        .limit(3);
 
-Format your response as a JSON object with these keys:
-- strengths: 1 sentence on what is working, tied to the rubric.
-- improvements: 1 sentence on the most important missing rubric quality.
-- grammar_notes: 1 short sentence on language precision only if useful; otherwise say "No major language issue in this draft."
-- structure_notes: 1 sentence on paragraph focus, coherence or flow.
-- paragraph_feedback: an array of at most 2 objects. Each object must have paragraph_number, focus, feedback, next_revision. Each value should be short.
-- next_step: 1 concrete revision action in no more than 20 words.`;
+      if (previousEssaysError) throw previousEssaysError;
+      previousWritingSamples = (previousEssays || [])
+        .map((item: any, index: number) => ({
+          sample: index + 1,
+          content: getDisplayEssayContent(item.content || "").slice(0, 1200)
+        }))
+        .filter((item: any) => item.content);
+    }
 
-    const prompt = `Essay Prompt: ${session.question_prompt || "No prompt supplied."}
+    const previousSamplesText = previousWritingSamples.length > 0
+      ? previousWritingSamples
+        .map((item: any) => `Previous Sample ${item.sample}:\n${item.content}`)
+        .join("\n\n")
+      : "No previous writing samples are available for this student.";
 
-Assess the draft against the rubric lens based only on what is written.
-If the draft is one paragraph, give feedback for that paragraph only.
-Keep the total feedback brief enough for a student to read quickly.
+    const prompt = `${H2_MLL_PAPER1_EXAMINER_PROMPT}
 
-Essay Content:
-${getDisplayEssayContent(essay.content) || "No essay content supplied."}`;
+Essay Question:
+${session.question_prompt || session.question_title || "No prompt supplied."}
+
+Student Writing:
+${getDisplayEssayContent(essay.content) || "No essay content supplied."}
+
+Previous Writing Samples:
+${previousSamplesText}`;
 
     const response = await gemini.models.generateContent({
       model: process.env.GEMINI_MODEL || "gemini-3.1-flash-lite-preview",
       contents: prompt,
       config: {
-        systemInstruction,
+        systemInstruction: "Return only valid JSON matching the requested keys. Base all feedback only on the supplied question, current writing, and previous samples.",
         responseMimeType: "application/json",
       },
     });

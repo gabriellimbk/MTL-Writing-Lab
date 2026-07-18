@@ -5,6 +5,7 @@ import {
   MessageSquare, Sparkles, BookOpen, ChevronRight, CheckCircle2, RefreshCcw, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -198,6 +199,7 @@ export default function StudentEditor() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [timerRemainingMs, setTimerRemainingMs] = useState<number | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const openedFeedbackKeyRef = useRef('');
 
@@ -256,6 +258,14 @@ export default function StudentEditor() {
   }, [fetchStudentState]);
 
   useEffect(() => {
+    const updateTimer = () => setTimerRemainingMs(getSessionTimerRemainingMs(session));
+    updateTimer();
+
+    const interval = window.setInterval(updateTimer, 1000);
+    return () => window.clearInterval(interval);
+  }, [session]);
+
+  useEffect(() => {
     if (!feedback) return;
 
     const feedbackKey = `${essay?.id || sessionId}:${JSON.stringify(feedback)}`;
@@ -267,7 +277,7 @@ export default function StudentEditor() {
 
   // Autosave logic
   const saveEssay = useCallback(async (newContent: string) => {
-    if (!essay || !session || session.status !== 'active') return;
+    if (!essay || !session || session.status !== 'active' || timerRemainingMs === 0) return;
     const mergedContent = mergeContinuationContent(lockedContent, newContent);
 
     setSaving(true);
@@ -288,7 +298,7 @@ export default function StudentEditor() {
       setLastSaved(new Date());
     }
     setSaving(false);
-  }, [essay, lockedContent, session, sessionId, studentId, studentToken]);
+  }, [essay, lockedContent, session, sessionId, studentId, studentToken, timerRemainingMs]);
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -355,6 +365,8 @@ export default function StudentEditor() {
     return acc;
   }, {});
   const paragraphFeedback = normalizeParagraphFeedback(feedback);
+  const timerLabel = formatTimerRemaining(timerRemainingMs);
+  const timerExpired = timerRemainingMs === 0;
 
   return (
     <div className="h-screen bg-[#f4f5f2] text-[#1f242b] font-sans flex flex-col overflow-hidden">
@@ -375,6 +387,15 @@ export default function StudentEditor() {
             <span className={cn("w-1.5 h-1.5 rounded-full", session.status === 'active' ? "bg-brand-500 animate-pulse" : "bg-slate-300")}></span>
             SESSION {session.status.toUpperCase()}
           </div>
+          {timerLabel && (
+            <div className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-black tracking-widest tabular-nums",
+              isTimerLow(timerRemainingMs) ? "bg-red-50 text-red-700 border-red-200" : "bg-slate-50 text-slate-500 border-slate-200"
+            )}>
+              <Clock className="w-3 h-3" />
+              {timerLabel}
+            </div>
+          )}
           <div className="h-8 w-px bg-slate-200"></div>
           {session.status === 'active' && (
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -452,16 +473,16 @@ export default function StudentEditor() {
                     </p>
                   )}
                   <textarea 
-                    readOnly={session.status !== 'active'}
+                    readOnly={session.status !== 'active' || timerExpired}
                     placeholder={lockedContent ? "Continue your writing here..." : "Capture your analysis here..."}
                     className="flex-1 w-full text-xl leading-[1.8] outline-none border-none resize-none font-serif text-slate-800 placeholder:text-slate-200"
                     value={content}
                     onChange={handleContentChange}
                   />
-                  {session.status === 'ended' && (
+                  {(session.status === 'ended' || timerExpired) && (
                     <div className="absolute inset-x-0 bottom-0 py-10 bg-gradient-to-t from-white via-white/95 to-transparent flex items-center justify-center">
                        <div className="bg-red-50 text-red-700 px-6 py-3 rounded-full border border-red-100 text-xs font-black uppercase tracking-widest flex items-center gap-3">
-                         <Clock className="w-4 h-4" /> Editing Disabled by Instructor
+                         <Clock className="w-4 h-4" /> {timerExpired ? 'Time is up' : 'Editing Disabled by Instructor'}
                        </div>
                     </div>
                   )}
@@ -552,22 +573,28 @@ export default function StudentEditor() {
                {feedback ? (
                  <div className="space-y-6">
                     <AnalysisCard 
-                      title="Success Indicators" 
+                      title="What is Working" 
                       content={feedback.strengths} 
                       theme="green" 
                       icon={<CheckCircle2 className="w-4 h-4" />} 
                     />
                     <AnalysisCard 
-                      title="Strategic Improvements" 
+                      title="What is Limiting the Score" 
                       content={feedback.improvements} 
                       theme="amber" 
                       icon={<AlertCircle className="w-4 h-4" />} 
                     />
                     <AnalysisCard 
-                      title="Architectural Flow" 
+                      title="Estimated Rubric Alignment" 
                       content={feedback.structure_notes} 
                       theme="blue" 
                       icon={<BookOpen className="w-4 h-4" />} 
+                    />
+                    <AnalysisCard
+                      title="Authenticity and Consistency"
+                      content={feedback.grammar_notes}
+                      theme="slate"
+                      icon={<MessageSquare className="w-4 h-4" />}
                     />
                     {paragraphFeedback.length > 0 && (
                       <div className="p-5 rounded-xl border bg-white border-slate-200 space-y-3">
@@ -595,7 +622,7 @@ export default function StudentEditor() {
                       </div>
                     )}
                     <div className="p-5 bg-[#1f242b] text-white rounded-xl shadow-geometric-lg">
-                      <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-brand-400 opacity-80">Mastery Step</h4>
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-brand-400 opacity-80">How to Reach the Next Band</h4>
                       <p className="text-sm font-medium text-slate-200 leading-relaxed">{feedback.next_step}</p>
                     </div>
                  </div>
@@ -679,22 +706,28 @@ export default function StudentEditor() {
 
             <div className="space-y-4">
               <AnalysisCard 
-                title="Success Indicators" 
+                title="What is Working" 
                 content={feedback.strengths} 
                 theme="green" 
                 icon={<CheckCircle2 className="w-4 h-4" />} 
               />
               <AnalysisCard 
-                title="Strategic Improvements" 
+                title="What is Limiting the Score" 
                 content={feedback.improvements} 
                 theme="amber" 
                 icon={<AlertCircle className="w-4 h-4" />} 
               />
               <AnalysisCard 
-                title="Architectural Flow" 
+                title="Estimated Rubric Alignment" 
                 content={feedback.structure_notes} 
                 theme="blue" 
                 icon={<BookOpen className="w-4 h-4" />} 
+              />
+              <AnalysisCard
+                title="Authenticity and Consistency"
+                content={feedback.grammar_notes}
+                theme="slate"
+                icon={<MessageSquare className="w-4 h-4" />}
               />
               {paragraphFeedback.length > 0 && (
                 <div className="p-5 rounded-xl border bg-white border-slate-200 space-y-3">
@@ -722,7 +755,7 @@ export default function StudentEditor() {
                 </div>
               )}
               <div className="p-5 bg-[#1f242b] text-white rounded-xl shadow-geometric-lg">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-brand-400 opacity-80">Mastery Step</h4>
+                <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-brand-400 opacity-80">How to Reach the Next Band</h4>
                 <p className="text-sm font-medium text-slate-200 leading-relaxed">{feedback.next_step}</p>
               </div>
             </div>
@@ -792,6 +825,7 @@ function AnalysisCard({ title, content, theme, icon }: any) {
     green: "bg-green-50 text-green-700 border-green-100",
     amber: "bg-amber-50 text-amber-700 border-amber-100",
     blue: "bg-brand-50 text-brand-600 border-brand-100",
+    slate: "bg-slate-50 text-slate-700 border-slate-200",
   };
   return (
     <div className={cn("p-5 rounded-xl border flex items-start gap-3 transition-all hover:shadow-sm", styles[theme])}>

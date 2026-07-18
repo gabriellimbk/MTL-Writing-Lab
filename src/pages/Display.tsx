@@ -321,10 +321,11 @@ export default function Display() {
               <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">AI Feedback</h2>
               <Sparkles className="w-4 h-4 text-brand-500" />
             </div>
-            <FeedbackCard title="Strengths" content={feedback?.strengths} icon={<CheckCircle2 className="w-4 h-4" />} tone="green" />
-            <FeedbackCard title="Improvements" content={feedback?.improvements} icon={<AlertCircle className="w-4 h-4" />} tone="amber" />
-            <FeedbackCard title="Structure" content={feedback?.structure_notes} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
-            <FeedbackCard title="Next Step" content={feedback?.next_step} icon={<Sparkles className="w-4 h-4" />} tone="slate" />
+            <FeedbackCard title="What is Working" content={feedback?.strengths} icon={<CheckCircle2 className="w-4 h-4" />} tone="green" />
+            <FeedbackCard title="What is Limiting the Score" content={feedback?.improvements} icon={<AlertCircle className="w-4 h-4" />} tone="amber" />
+            <FeedbackCard title="How to Reach the Next Band" content={feedback?.next_step} icon={<Sparkles className="w-4 h-4" />} tone="slate" />
+            <FeedbackCard title="Estimated Rubric Alignment" content={feedback?.structure_notes} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
+            <FeedbackCard title="Authenticity and Consistency" content={feedback?.grammar_notes} icon={<User className="w-4 h-4" />} tone="slate" />
           </section>
 
           {paragraphFeedback.length > 0 && (
@@ -416,10 +417,11 @@ function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, t
 
         {openPanel === 'ai' && (
           <div className="space-y-4">
-            <FeedbackCard title="Strengths" content={feedback?.strengths} icon={<CheckCircle2 className="w-4 h-4" />} tone="green" />
-            <FeedbackCard title="Improvements" content={feedback?.improvements} icon={<AlertCircle className="w-4 h-4" />} tone="amber" />
-            <FeedbackCard title="Structure" content={feedback?.structure_notes} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
-            <FeedbackCard title="Next Step" content={feedback?.next_step} icon={<Sparkles className="w-4 h-4" />} tone="slate" />
+            <FeedbackCard title="What is Working" content={feedback?.strengths} icon={<CheckCircle2 className="w-4 h-4" />} tone="green" />
+            <FeedbackCard title="What is Limiting the Score" content={feedback?.improvements} icon={<AlertCircle className="w-4 h-4" />} tone="amber" />
+            <FeedbackCard title="How to Reach the Next Band" content={feedback?.next_step} icon={<Sparkles className="w-4 h-4" />} tone="slate" />
+            <FeedbackCard title="Estimated Rubric Alignment" content={feedback?.structure_notes} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
+            <FeedbackCard title="Authenticity and Consistency" content={feedback?.grammar_notes} icon={<User className="w-4 h-4" />} tone="slate" />
           </div>
         )}
 

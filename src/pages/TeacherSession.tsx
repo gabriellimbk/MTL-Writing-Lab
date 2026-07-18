@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useSessionRealtime } from '../hooks/useSessionRealtime';
 import { supabase } from '../lib/supabase';
@@ -6,11 +6,13 @@ import { useAuth } from '../hooks/useAuth';
 import { 
   Users, Play, Square, Loader2, Sparkles, 
   RefreshCcw, Eye, ChevronLeft, CheckCircle2,
-  BookOpen, Download
+  BookOpen, Download, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
 
 const CONTINUATION_BREAK_PATTERN = /\n*\[\[WRITING_LAB_CONTINUE_BREAK\]\]\n*/g;
+const TIMER_MINUTE_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
 function cleanContinuationMarkers(content = '') {
   return content.replace(CONTINUATION_BREAK_PATTERN, '\n\n').trim();
@@ -27,6 +29,16 @@ export default function TeacherSession() {
   const { session, students, essays, error: sessionLoadError } = useSessionRealtime(id);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [selectedTimerMinutes, setSelectedTimerMinutes] = useState(60);
+  const [timerRemainingMs, setTimerRemainingMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    const updateTimer = () => setTimerRemainingMs(getSessionTimerRemainingMs(session));
+    updateTimer();
+
+    const interval = window.setInterval(updateTimer, 1000);
+    return () => window.clearInterval(interval);
+  }, [session]);
 
   if (!session && sessionLoadError) return (
     <div className="h-screen flex items-center justify-center bg-[#f4f5f2] p-6">
@@ -51,7 +63,7 @@ export default function TeacherSession() {
     </div>
   );
 
-  async function updateStatus(status: string) {
+  async function updateStatus(status: string, timerMinutes?: number) {
     setLoadingAction('status');
     setErrorMessage('');
     try {
@@ -62,7 +74,7 @@ export default function TeacherSession() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ sessionId: session.id, status })
+        body: JSON.stringify({ sessionId: session.id, status, timerMinutes })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -195,6 +207,7 @@ export default function TeacherSession() {
     ? Math.round(essays.reduce((acc, curr) => acc + getWordCount(curr.content || ''), 0) / essays.length)
     : 0;
   const canManageSession = session.teacher_id === user?.id;
+  const timerLabel = formatTimerRemaining(timerRemainingMs);
 
   return (
     <div className="h-screen bg-[#f4f5f2] text-[#1f242b] font-sans flex flex-col overflow-hidden">
@@ -214,6 +227,15 @@ export default function TeacherSession() {
             <span className={cn("w-2 h-2 rounded-full", session.status === 'active' ? "bg-brand-500 animate-pulse" : "bg-slate-300")}></span>
             SESSION {session.status.toUpperCase()}
           </div>
+          {timerLabel && (
+            <div className={cn(
+              "flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-black tracking-widest tabular-nums",
+              isTimerLow(timerRemainingMs) ? "bg-red-50 text-red-700 border-red-200" : "bg-slate-50 text-slate-600 border-slate-200"
+            )}>
+              <Clock className="w-3.5 h-3.5" />
+              {timerLabel}
+            </div>
+          )}
           <div className="h-8 w-px bg-slate-200"></div>
           <div className="flex items-center gap-3 text-sm font-medium">
             <div className="text-right leading-none">
@@ -249,13 +271,28 @@ export default function TeacherSession() {
                 </div>
               )}
               {canManageSession && session.status === 'waiting' && (
-                <button 
-                  onClick={() => updateStatus('active')}
-                  disabled={!!loadingAction}
-                  className="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2"
-                >
-                  <Play className="w-4 h-4 fill-current" /> Start Session
-                </button>
+                <>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Countdown Timer</label>
+                    <select
+                      value={selectedTimerMinutes}
+                      onChange={(event) => setSelectedTimerMinutes(Number(event.target.value))}
+                      disabled={!!loadingAction}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm rounded-lg px-3 py-3 outline-none focus:border-brand-500 focus:bg-white"
+                    >
+                      {TIMER_MINUTE_OPTIONS.map(minutes => (
+                        <option key={minutes} value={minutes}>{minutes} minutes</option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => updateStatus('active', selectedTimerMinutes)}
+                    disabled={!!loadingAction}
+                    className="w-full bg-brand-500 hover:bg-brand-600 text-white font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4 fill-current" /> Start Session
+                  </button>
+                </>
               )}
               {canManageSession && session.status === 'active' && (
                 <button 
