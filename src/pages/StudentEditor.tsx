@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
+import FeedbackContent from '../components/FeedbackContent';
+import FeedbackAccordion from '../components/FeedbackAccordion';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -51,22 +53,6 @@ function normalizeParagraphFeedback(feedback: any) {
 
 function getCommenterLabel(comment: any) {
   return comment.commenter_name || (comment.commenter_type === 'teacher' ? 'Teacher' : 'Peer reviewer');
-}
-
-function formatFeedbackContent(content: any) {
-  if (content === null || content === undefined || content === '') return 'No feedback generated yet.';
-  if (typeof content === 'string') return content;
-  if (typeof content === 'number' || typeof content === 'boolean') return String(content);
-  if (Array.isArray(content)) return content.map(formatFeedbackContent).join('\n');
-  if (typeof content === 'object') {
-    return Object.entries(content)
-      .map(([key, value]) => {
-        const label = key.replace(/_/g, ' ');
-        return `${label}: ${formatFeedbackContent(value)}`;
-      })
-      .join('\n');
-  }
-  return String(content);
 }
 
 function useRenderedLines(text: string) {
@@ -385,7 +371,7 @@ export default function StudentEditor() {
   const timerExpired = timerRemainingMs === 0;
 
   return (
-    <div className="h-screen bg-[#f4f5f2] text-[#1f242b] font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-[#faf8f3] text-[#242523] font-sans flex flex-col overflow-hidden">
       {/* Header */}
       <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-4">
@@ -450,7 +436,7 @@ export default function StudentEditor() {
         {/* Active/Ended State */}
         {(session.status === 'active' || session.status === 'ended') && (
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            <main className="flex-1 bg-[#f4f5f2] p-4 md:p-12 overflow-y-auto flex justify-center">
+            <main className="flex-1 bg-[#faf8f3] p-4 md:p-12 overflow-y-auto flex justify-center">
                <div className="w-full max-w-3xl bg-white shadow-geometric border border-slate-200 rounded-xl min-h-[600px] md:min-h-[1000px] p-6 md:p-16 flex flex-col relative">
                   <div className="mb-6 md:mb-8 border-b border-slate-100 pb-6 md:pb-8">
                     <div className="flex items-start justify-between gap-4 mb-3">
@@ -539,7 +525,7 @@ export default function StudentEditor() {
                </div>
             </aside>
 
-            <main className="flex-1 bg-[#f4f5f2] p-4 md:p-12 overflow-y-auto flex justify-center">
+            <main className="flex-1 bg-[#faf8f3] p-4 md:p-12 overflow-y-auto flex justify-center">
               <div className="w-full max-w-3xl bg-white shadow-geometric border border-slate-200 rounded-xl min-h-[600px] md:min-h-[1000px] p-6 md:p-16 flex flex-col">
                 <header className="mb-6 md:mb-8 text-center border-b border-slate-50 pb-6 md:pb-8 opacity-40">
                   <h1 className="text-3xl md:text-5xl font-serif text-slate-900 mb-2">Classmate's Draft</h1>
@@ -624,22 +610,20 @@ export default function StudentEditor() {
                                 Paragraph {item.paragraph_number || index + 1}
                                 {item.focus ? ` — ${item.focus}` : ''}
                               </p>
-                              <p className="text-sm font-normal leading-relaxed text-slate-700">
-                                {item.feedback}
-                              </p>
+                              <FeedbackContent content={item.feedback} />
                               {item.next_revision && (
-                                <p className="text-xs font-medium leading-relaxed text-slate-400 mt-1">
-                                  Next: {item.next_revision}
-                                </p>
+                                <div className="mt-2 text-xs font-medium leading-relaxed text-slate-400">
+                                  <FeedbackContent content={`Next: ${item.next_revision}`} />
+                                </div>
                               )}
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
-                    <div className="p-5 bg-[#1f242b] text-white rounded-xl shadow-geometric-lg">
+                    <div className="feedback-next-step p-5 text-white rounded-2xl shadow-geometric-lg">
                       <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-brand-400 opacity-80">How to Reach the Next Band</h4>
-                      <p className="text-sm font-medium text-slate-200 leading-relaxed">{feedback.next_step}</p>
+                      <FeedbackContent content={feedback.next_step} />
                     </div>
                  </div>
                ) : (
@@ -721,30 +705,13 @@ export default function StudentEditor() {
             </div>
 
             <div className="space-y-4">
-              <AnalysisCard 
-                title="What is Working" 
-                content={feedback.strengths} 
-                theme="green" 
-                icon={<CheckCircle2 className="w-4 h-4" />} 
-              />
-              <AnalysisCard 
-                title="What is Limiting the Score" 
-                content={feedback.improvements} 
-                theme="amber" 
-                icon={<AlertCircle className="w-4 h-4" />} 
-              />
-              <AnalysisCard 
-                title="Estimated Rubric Alignment" 
-                content={feedback.structure_notes} 
-                theme="blue" 
-                icon={<BookOpen className="w-4 h-4" />} 
-              />
-              <AnalysisCard
-                title="Authenticity and Consistency"
-                content={feedback.grammar_notes}
-                theme="slate"
-                icon={<MessageSquare className="w-4 h-4" />}
-              />
+              <FeedbackAccordion items={[
+                { title: 'What is Working', content: feedback.strengths, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'mint' },
+                { title: 'What is Limiting the Score', content: feedback.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
+                { title: 'How to Reach the Next Band', content: feedback.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
+                { title: 'Estimated Rubric Alignment', content: feedback.structure_notes, icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
+                { title: 'Authenticity and Consistency', content: feedback.grammar_notes, icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
+              ]} />
               {paragraphFeedback.length > 0 && (
                 <div className="p-5 rounded-xl border bg-white border-slate-200 space-y-3">
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">
@@ -757,23 +724,17 @@ export default function StudentEditor() {
                           Paragraph {item.paragraph_number || index + 1}
                           {item.focus ? ` - ${item.focus}` : ''}
                         </p>
-                        <p className="text-sm font-normal leading-relaxed text-slate-700">
-                          {item.feedback}
-                        </p>
+                        <FeedbackContent content={item.feedback} />
                         {item.next_revision && (
-                          <p className="text-xs font-medium leading-relaxed text-slate-400 mt-1">
-                            Next: {item.next_revision}
-                          </p>
+                          <div className="mt-2 text-xs font-medium leading-relaxed text-slate-400">
+                            <FeedbackContent content={`Next: ${item.next_revision}`} />
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              <div className="p-5 bg-[#1f242b] text-white rounded-xl shadow-geometric-lg">
-                <h4 className="text-[10px] font-bold uppercase tracking-widest mb-2 text-brand-400 opacity-80">How to Reach the Next Band</h4>
-                <p className="text-sm font-medium text-slate-200 leading-relaxed">{feedback.next_step}</p>
-              </div>
             </div>
           </motion.div>
         </div>
@@ -818,7 +779,7 @@ export default function StudentEditor() {
       )}
 
       {/* Footer Status Bar */}
-      <footer className="h-8 bg-[#25282d] text-[#5c6470] px-6 flex items-center justify-between text-[10px] shrink-0 font-black tracking-tight uppercase">
+      <footer className="h-8 bg-[#293c37] text-[#c1b8aa] px-6 flex items-center justify-between text-[10px] shrink-0 font-black tracking-tight uppercase">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
@@ -844,11 +805,11 @@ function AnalysisCard({ title, content, theme, icon }: any) {
     slate: "bg-slate-50 text-slate-700 border-slate-200",
   };
   return (
-    <div className={cn("p-5 rounded-xl border flex items-start gap-3 transition-all hover:shadow-sm", styles[theme])}>
+    <div className={cn("feedback-card p-5 rounded-2xl border flex items-start gap-3 transition-all hover:shadow-sm", styles[theme])}>
       <div className="mt-0.5 shrink-0 opacity-70">{icon}</div>
       <div className="min-w-0">
         <h4 className="text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60">{title}</h4>
-        <p className="text-sm font-normal leading-relaxed whitespace-pre-line">{formatFeedbackContent(content)}</p>
+        <FeedbackContent content={content} />
       </div>
     </div>
   );

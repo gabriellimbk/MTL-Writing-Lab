@@ -30,8 +30,10 @@ const CONTINUATION_BREAK_PATTERN = /\n*\[\[WRITING_LAB_CONTINUE_BREAK\]\]\n*/g;
 
 const TEACHER_EMAIL_DOMAIN = "@ri.edu.sg";
 const TEACHER_SHARED_PASSWORD = process.env.TEACHER_SHARED_PASSWORD || "Password1";
-const MIN_TIMER_MINUTES = 1;
-const MAX_TIMER_MINUTES = 240;
+const TIMER_MINUTE_OPTIONS = [
+  ...Array.from({ length: 20 }, (_, index) => index + 1),
+  25, 30, 35, 40, 45
+];
 
 const H2_MLL_PAPER1_EXAMINER_PROMPT = `
 You are an experienced Singapore GCE A-Level H2 Malay Language and Literature (9576) examiner.
@@ -255,8 +257,8 @@ function normalizeTimerMinutes(value: any) {
   if (!Number.isFinite(minutes)) {
     throw new Error("Invalid timer duration");
   }
-  if (minutes < MIN_TIMER_MINUTES || minutes > MAX_TIMER_MINUTES) {
-    throw new Error(`Timer must be between ${MIN_TIMER_MINUTES} and ${MAX_TIMER_MINUTES} minutes`);
+  if (!TIMER_MINUTE_OPTIONS.includes(minutes)) {
+    throw new Error("Timer must be between 1 and 20 minutes, or 25, 30, 35, 40, or 45 minutes");
   }
 
   return minutes;
@@ -922,7 +924,7 @@ app.post("/api/session/status", async (req, res) => {
 });
 
 app.post("/api/session/continue", async (req, res) => {
-  const { sessionId } = req.body;
+  const { sessionId, timerMinutes } = req.body;
 
   if (!sessionId) {
     return res.status(400).json({ error: "Missing sessionId" });
@@ -963,7 +965,7 @@ app.post("/api/session/continue", async (req, res) => {
     const updateError = results.find(result => result.error)?.error;
     if (updateError) throw updateError;
 
-    const continuedTimerMinutes = normalizeTimerMinutes(session.timer_duration_minutes);
+    const continuedTimerMinutes = normalizeTimerMinutes(timerMinutes || session.timer_duration_minutes);
     const continuedTimerFields = getTimerFields(continuedTimerMinutes);
     const { error: statusError } = await admin
       .from(TABLES.sessions)

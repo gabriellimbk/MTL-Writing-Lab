@@ -12,7 +12,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
 
 const CONTINUATION_BREAK_PATTERN = /\n*\[\[WRITING_LAB_CONTINUE_BREAK\]\]\n*/g;
-const TIMER_MINUTE_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
+const TIMER_MINUTE_OPTIONS = [
+  ...Array.from({ length: 20 }, (_, index) => index + 1),
+  25, 30, 35, 40, 45
+];
 
 function cleanContinuationMarkers(content = '') {
   return content.replace(CONTINUATION_BREAK_PATTERN, '\n\n').trim();
@@ -29,8 +32,14 @@ export default function TeacherSession() {
   const { session, students, essays, error: sessionLoadError } = useSessionRealtime(id);
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [selectedTimerMinutes, setSelectedTimerMinutes] = useState(60);
+  const [selectedTimerMinutes, setSelectedTimerMinutes] = useState(45);
   const [timerRemainingMs, setTimerRemainingMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (TIMER_MINUTE_OPTIONS.includes(Number(session?.timer_duration_minutes))) {
+      setSelectedTimerMinutes(Number(session.timer_duration_minutes));
+    }
+  }, [session?.id, session?.timer_duration_minutes]);
 
   useEffect(() => {
     const updateTimer = () => setTimerRemainingMs(getSessionTimerRemainingMs(session));
@@ -41,7 +50,7 @@ export default function TeacherSession() {
   }, [session]);
 
   if (!session && sessionLoadError) return (
-    <div className="h-screen flex items-center justify-center bg-[#f4f5f2] p-6">
+    <div className="h-screen flex items-center justify-center bg-[#faf8f3] p-6">
       <div className="max-w-md rounded-2xl border border-red-100 bg-white p-8 shadow-geometric text-center">
         <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-500 mb-3">Session Load Failed</p>
         <h1 className="text-2xl font-black text-slate-900 mb-3">Could not open this session</h1>
@@ -58,7 +67,7 @@ export default function TeacherSession() {
   );
 
   if (!session) return (
-    <div className="h-screen flex items-center justify-center bg-[#f4f5f2]">
+    <div className="h-screen flex items-center justify-center bg-[#faf8f3]">
       <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
     </div>
   );
@@ -161,7 +170,7 @@ export default function TeacherSession() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ sessionId: session.id })
+        body: JSON.stringify({ sessionId: session.id, timerMinutes: selectedTimerMinutes })
       });
 
       if (!response.ok) {
@@ -210,7 +219,7 @@ export default function TeacherSession() {
   const timerLabel = formatTimerRemaining(timerRemainingMs);
 
   return (
-    <div className="h-screen bg-[#f4f5f2] text-[#1f242b] font-sans flex flex-col overflow-hidden">
+    <div className="h-screen bg-[#faf8f3] text-[#242523] font-sans flex flex-col overflow-hidden">
       {/* Top Navigation Bar */}
       <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
         <div className="flex items-center gap-3">
@@ -272,19 +281,7 @@ export default function TeacherSession() {
               )}
               {canManageSession && session.status === 'waiting' && (
                 <>
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Countdown Timer</label>
-                    <select
-                      value={selectedTimerMinutes}
-                      onChange={(event) => setSelectedTimerMinutes(Number(event.target.value))}
-                      disabled={!!loadingAction}
-                      className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold text-sm rounded-lg px-3 py-3 outline-none focus:border-brand-500 focus:bg-white"
-                    >
-                      {TIMER_MINUTE_OPTIONS.map(minutes => (
-                        <option key={minutes} value={minutes}>{minutes} minutes</option>
-                      ))}
-                    </select>
-                  </div>
+                  <TimerSlider value={selectedTimerMinutes} onChange={setSelectedTimerMinutes} disabled={!!loadingAction} />
                   <button
                     onClick={() => updateStatus('active', selectedTimerMinutes)}
                     disabled={!!loadingAction}
@@ -305,6 +302,7 @@ export default function TeacherSession() {
               )}
               {canManageSession && ['ended', 'peer_review', 'returned'].includes(session.status) && (
                 <>
+                  <TimerSlider value={selectedTimerMinutes} onChange={setSelectedTimerMinutes} disabled={!!loadingAction} />
                   <button
                     onClick={continueSession}
                     disabled={!!loadingAction}
@@ -383,7 +381,7 @@ export default function TeacherSession() {
         </aside>
 
         {/* Content Area */}
-        <main className="flex-1 flex flex-col bg-[#f4f5f2] p-4 md:p-8 overflow-y-auto">
+        <main className="flex-1 flex flex-col bg-[#faf8f3] p-4 md:p-8 overflow-y-auto">
           {errorMessage && (
             <div className="bg-red-50 border border-red-100 text-red-700 px-5 py-4 rounded-xl text-sm font-bold mb-6">
               {errorMessage}
@@ -469,6 +467,40 @@ export default function TeacherSession() {
             })}
           </div>
         </main>
+      </div>
+    </div>
+  );
+}
+
+function TimerSlider({ value, onChange, disabled }: { value: number; onChange: (minutes: number) => void; disabled?: boolean }) {
+  const sliderIndex = Math.max(0, TIMER_MINUTE_OPTIONS.indexOf(value));
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <label htmlFor="session-timer-slider" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          Countdown Timer
+        </label>
+        <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-black tabular-nums text-brand-700">
+          {value} {value === 1 ? 'minute' : 'minutes'}
+        </span>
+      </div>
+      <input
+        id="session-timer-slider"
+        type="range"
+        min="0"
+        max={TIMER_MINUTE_OPTIONS.length - 1}
+        step="1"
+        value={sliderIndex}
+        onChange={(event) => onChange(TIMER_MINUTE_OPTIONS[Number(event.target.value)])}
+        disabled={disabled}
+        aria-label="Countdown timer duration"
+        aria-valuetext={`${value} ${value === 1 ? 'minute' : 'minutes'}`}
+        className="timer-slider w-full"
+      />
+      <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-slate-400">
+        <span>1 min</span>
+        <span>45 min</span>
       </div>
     </div>
   );

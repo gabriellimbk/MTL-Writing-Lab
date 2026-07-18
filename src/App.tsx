@@ -13,7 +13,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="min-h-screen bg-[#f4f5f2] text-[#1f242b] font-sans">
+        <div className="min-h-screen bg-[#faf8f3] text-[#242523] font-sans">
           <Routes>
             <Route path="/" element={<Landing />} />
             
@@ -49,7 +49,7 @@ function ProtectedRoute({ children, role }: { children: React.ReactNode, role?: 
   const { user, loading, isTeacher } = useAuth();
 
   if (loading) return (
-    <div className="h-screen flex items-center justify-center bg-[#f4f5f2]">
+    <div className="h-screen flex items-center justify-center bg-[#faf8f3]">
       <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
     </div>
   );

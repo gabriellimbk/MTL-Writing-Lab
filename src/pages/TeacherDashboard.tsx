@@ -186,7 +186,7 @@ export default function TeacherDashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-[#f4f5f2] overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#faf8f3] overflow-hidden font-sans">
       {/* Sidebar */}
       <aside className="w-72 lg:w-80 bg-white border-r border-slate-200 hidden md:flex flex-col shrink-0">
         <div className="p-8 pb-4">
@@ -343,7 +343,7 @@ export default function TeacherDashboard() {
           )}
         </div>
 
-        <footer className="h-10 bg-[#25282d] border-t border-[#1a1e24] px-8 flex items-center justify-between text-[10px] font-bold text-[#5c6470] tracking-wider uppercase shrink-0">
+        <footer className="h-10 bg-[#293c37] border-t border-[#20312d] px-8 flex items-center justify-between text-[10px] font-bold text-[#c1b8aa] tracking-wider uppercase shrink-0">
           <div className="flex items-center gap-4">
              <div className="flex items-center gap-1.5">
                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>

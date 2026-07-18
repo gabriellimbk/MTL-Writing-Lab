@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { supabase } from '../lib/supabase';
+import FeedbackContent from '../components/FeedbackContent';
+import FeedbackAccordion from '../components/FeedbackAccordion';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -46,22 +48,6 @@ function groupCommentsByLine(comments: any[]) {
 
 function getCommenterLabel(comment: any) {
   return comment.commenter_name || (comment.commenter_type === 'teacher' ? 'Teacher' : 'Peer reviewer');
-}
-
-function formatFeedbackContent(content: any) {
-  if (content === null || content === undefined || content === '') return 'No feedback generated yet.';
-  if (typeof content === 'string') return content;
-  if (typeof content === 'number' || typeof content === 'boolean') return String(content);
-  if (Array.isArray(content)) return content.map(formatFeedbackContent).join('\n');
-  if (typeof content === 'object') {
-    return Object.entries(content)
-      .map(([key, value]) => {
-        const label = key.replace(/_/g, ' ');
-        return `${label}: ${formatFeedbackContent(value)}`;
-      })
-      .join('\n');
-  }
-  return String(content);
 }
 
 function useRenderedLines(text: string) {
@@ -160,12 +146,12 @@ function FeedbackCard({ title, content, icon, tone }: any) {
   };
 
   return (
-    <div className={cn("rounded-xl border p-4", tones[tone] || tones.slate)}>
-      <div className="flex items-center gap-2 mb-1.5">
+    <div className={cn("feedback-card rounded-2xl border p-5", tones[tone] || tones.slate)}>
+      <div className="flex items-center gap-2 mb-3">
         <span className="opacity-70 shrink-0">{icon}</span>
         <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-60">{title}</h3>
       </div>
-      <p className="text-sm font-normal leading-relaxed text-slate-700 whitespace-pre-line">{formatFeedbackContent(content)}</p>
+      <FeedbackContent content={content} />
     </div>
   );
 }
@@ -230,7 +216,7 @@ export default function Display() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f4f5f2] text-slate-400">
+      <div className="min-h-screen flex items-center justify-center bg-[#faf8f3] text-slate-400">
         <Loader2 className="w-10 h-10 animate-spin" />
       </div>
     );
@@ -238,7 +224,7 @@ export default function Display() {
 
   if (!essay) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f4f5f2] text-slate-400 font-black uppercase tracking-widest text-xs">
+      <div className="min-h-screen flex items-center justify-center bg-[#faf8f3] text-slate-400 font-black uppercase tracking-widest text-xs">
         Essay Protocol Not Found
       </div>
     );
@@ -253,7 +239,7 @@ export default function Display() {
   const paragraphFeedback = Array.isArray(feedback?.paragraph_feedback) ? feedback.paragraph_feedback : [];
 
   return (
-    <div className="min-h-screen bg-[#f4f5f2] font-sans text-[#1f242b]">
+    <div className="min-h-screen bg-[#faf8f3] font-sans text-[#242523]">
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
         <div className="h-16 md:h-20 px-4 md:px-8 flex items-center justify-between gap-4 md:gap-6">
           <div className="flex items-center gap-4 min-w-0">
@@ -354,7 +340,7 @@ export default function Display() {
                       Paragraph {item.paragraph_number || index + 1}
                       {item.focus ? ` — ${item.focus}` : ''}
                     </p>
-                    <p className="text-sm font-normal leading-relaxed text-slate-700">{item.feedback}</p>
+                <FeedbackContent content={item.feedback} />
                   </div>
                 ))}
               </div>
@@ -432,13 +418,13 @@ function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, t
         </div>
 
         {openPanel === 'ai' && (
-          <div className="space-y-4">
-            <FeedbackCard title="What is Working" content={feedback?.strengths} icon={<CheckCircle2 className="w-4 h-4" />} tone="green" />
-            <FeedbackCard title="What is Limiting the Score" content={feedback?.improvements} icon={<AlertCircle className="w-4 h-4" />} tone="amber" />
-            <FeedbackCard title="How to Reach the Next Band" content={feedback?.next_step} icon={<Sparkles className="w-4 h-4" />} tone="slate" />
-            <FeedbackCard title="Estimated Rubric Alignment" content={feedback?.structure_notes} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
-            <FeedbackCard title="Authenticity and Consistency" content={feedback?.grammar_notes} icon={<User className="w-4 h-4" />} tone="slate" />
-          </div>
+          <FeedbackAccordion items={[
+            { title: 'What is Working', content: feedback?.strengths, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'mint' },
+            { title: 'What is Limiting the Score', content: feedback?.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
+            { title: 'How to Reach the Next Band', content: feedback?.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
+            { title: 'Estimated Rubric Alignment', content: feedback?.structure_notes, icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
+            { title: 'Authenticity and Consistency', content: feedback?.grammar_notes, icon: <User className="h-4 w-4" />, tone: 'rose' }
+          ]} />
         )}
 
         {openPanel === 'paragraph' && (
@@ -449,7 +435,7 @@ function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, t
                   Paragraph {item.paragraph_number || index + 1}
                   {item.focus ? ` - ${item.focus}` : ''}
                 </p>
-                <p className="text-sm font-normal leading-relaxed text-slate-700">{item.feedback}</p>
+                <FeedbackContent content={item.feedback} />
               </div>
             ))}
           </div>
