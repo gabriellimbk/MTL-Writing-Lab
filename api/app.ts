@@ -82,6 +82,8 @@ Return only a JSON object with these keys:
 - structure_notes: "Estimated Rubric Alignment" with Content band and reason, Language band and reason, and an overall examiner comment. Do not give exact marks.
 - grammar_notes: "Authenticity Check and Writing Consistency Analysis". If no previous samples are provided, say the consistency estimate has lower confidence because no previous samples are available.
 - paragraph_feedback: an empty array unless a very short paragraph-specific note is essential.
+
+All values except paragraph_feedback must be plain strings, not arrays or nested objects.
 `;
 
 function parseJsonObjectFromModel(text: string) {
@@ -91,6 +93,44 @@ function parseJsonObjectFromModel(text: string) {
     .replace(/\s*```$/i, "");
 
   return JSON.parse(cleaned);
+}
+
+function formatFeedbackValue(value: any): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map(item => {
+        const formatted = formatFeedbackValue(item);
+        return formatted ? `- ${formatted}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, entryValue]) => {
+        const label = key.replace(/_/g, " ");
+        const formatted = formatFeedbackValue(entryValue);
+        return formatted ? `${label}: ${formatted}` : "";
+      })
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return String(value);
+}
+
+function normalizeAiFeedback(feedback: any) {
+  return {
+    strengths: formatFeedbackValue(feedback?.strengths),
+    improvements: formatFeedbackValue(feedback?.improvements),
+    next_step: formatFeedbackValue(feedback?.next_step),
+    structure_notes: formatFeedbackValue(feedback?.structure_notes),
+    grammar_notes: formatFeedbackValue(feedback?.grammar_notes),
+    paragraph_feedback: Array.isArray(feedback?.paragraph_feedback) ? feedback.paragraph_feedback : [],
+  };
 }
 
 function getBearerToken(req: express.Request) {
@@ -1217,7 +1257,7 @@ ${previousSamplesText}`;
       },
     });
 
-    const feedbackData = parseJsonObjectFromModel(response.text || "{}");
+    const feedbackData = normalizeAiFeedback(parseJsonObjectFromModel(response.text || "{}"));
 
     const { data, error } = await admin
       .from(TABLES.essays)

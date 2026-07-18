@@ -53,6 +53,22 @@ function getCommenterLabel(comment: any) {
   return comment.commenter_name || (comment.commenter_type === 'teacher' ? 'Teacher' : 'Peer reviewer');
 }
 
+function formatFeedbackContent(content: any) {
+  if (content === null || content === undefined || content === '') return 'No feedback generated yet.';
+  if (typeof content === 'string') return content;
+  if (typeof content === 'number' || typeof content === 'boolean') return String(content);
+  if (Array.isArray(content)) return content.map(formatFeedbackContent).join('\n');
+  if (typeof content === 'object') {
+    return Object.entries(content)
+      .map(([key, value]) => {
+        const label = key.replace(/_/g, ' ');
+        return `${label}: ${formatFeedbackContent(value)}`;
+      })
+      .join('\n');
+  }
+  return String(content);
+}
+
 function useRenderedLines(text: string) {
   const textRef = useRef<HTMLParagraphElement | null>(null);
   const [metrics, setMetrics] = useState({ lineCount: 1, lineHeight: 36 });
@@ -832,7 +848,7 @@ function AnalysisCard({ title, content, theme, icon }: any) {
       <div className="mt-0.5 shrink-0 opacity-70">{icon}</div>
       <div className="min-w-0">
         <h4 className="text-[10px] font-bold uppercase tracking-widest mb-1.5 opacity-60">{title}</h4>
-        <p className="text-sm font-normal leading-relaxed">{content}</p>
+        <p className="text-sm font-normal leading-relaxed whitespace-pre-line">{formatFeedbackContent(content)}</p>
       </div>
     </div>
   );
