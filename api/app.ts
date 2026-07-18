@@ -32,7 +32,7 @@ const TEACHER_EMAIL_DOMAIN = "@ri.edu.sg";
 const TEACHER_SHARED_PASSWORD = process.env.TEACHER_SHARED_PASSWORD || "Password1";
 const TIMER_MINUTE_OPTIONS = [
   ...Array.from({ length: 20 }, (_, index) => index + 1),
-  25, 30, 35, 40, 45
+  25, 30, 35, 40, 45, 50, 60, 70, 80
 ];
 
 const H2_MLL_PAPER1_EXAMINER_PROMPT = `
@@ -301,7 +301,7 @@ function normalizeTimerMinutes(value: any) {
     throw new Error("Invalid timer duration");
   }
   if (!TIMER_MINUTE_OPTIONS.includes(minutes)) {
-    throw new Error("Timer must be between 1 and 20 minutes, or 25, 30, 35, 40, or 45 minutes");
+    throw new Error("Timer must be between 1 and 20 minutes, or 25, 30, 35, 40, 45, 50, 60, 70, or 80 minutes");
   }
 
   return minutes;

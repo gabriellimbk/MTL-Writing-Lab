@@ -14,7 +14,7 @@ import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '..
 const CONTINUATION_BREAK_PATTERN = /\n*\[\[WRITING_LAB_CONTINUE_BREAK\]\]\n*/g;
 const TIMER_MINUTE_OPTIONS = [
   ...Array.from({ length: 20 }, (_, index) => index + 1),
-  25, 30, 35, 40, 45
+  25, 30, 35, 40, 45, 50, 60, 70, 80
 ];
 
 function cleanContinuationMarkers(content = '') {
@@ -502,7 +502,7 @@ function TimerSlider({ value, onChange, disabled }: { value: number; onChange: (
       />
       <div className="mt-1 flex items-center justify-between text-[10px] font-bold text-slate-400">
         <span>1 min</span>
-        <span>45 min</span>
+        <span>80 min</span>
       </div>
     </div>
   );
