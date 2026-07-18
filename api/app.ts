@@ -525,8 +525,8 @@ app.post("/api/teacher/question", async (req, res) => {
   const questionTitle = String(title || "").trim();
   const questionPrompt = String(prompt || "").trim();
 
-  if (!questionTitle || !questionPrompt) {
-    return res.status(400).json({ error: "Question title and prompt are required" });
+  if (!questionTitle) {
+    return res.status(400).json({ error: "Question title is required" });
   }
 
   try {

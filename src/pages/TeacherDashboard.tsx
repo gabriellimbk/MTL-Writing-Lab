@@ -376,11 +376,13 @@ export default function TeacherDashboard() {
                   <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-6">
                     {viewingQuestion.question_title}
                   </h3>
-                  <div className="max-h-[45vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-5">
-                    <p className="whitespace-pre-wrap text-sm leading-7 text-slate-600 font-medium">
-                      {viewingQuestion.question_prompt || 'No writing prompt was saved for this title.'}
-                    </p>
-                  </div>
+                  {viewingQuestion.question_prompt && (
+                    <div className="max-h-[45vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-5">
+                      <p className="whitespace-pre-wrap text-sm leading-7 text-slate-600 font-medium">
+                        {viewingQuestion.question_prompt}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex gap-4 pt-8">
                     <button
                       type="button"
@@ -402,6 +404,7 @@ export default function TeacherDashboard() {
                         <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Title</label>
                         <input 
                           autoFocus
+                          required
                           placeholder="Short descriptive title"
                           className="w-full bg-slate-50 border border-slate-200 px-4 py-4 rounded-lg outline-none focus:border-brand-500 focus:bg-white transition-all font-medium"
                           value={newQuestionTitle}
@@ -409,7 +412,7 @@ export default function TeacherDashboard() {
                         />
                     </div>
                     <div>
-                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Writing Prompt</label>
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block">Writing Prompt (Optional)</label>
                         <textarea 
                           placeholder="Detailed instructions for students..."
                           className="w-full bg-slate-50 border border-slate-200 px-4 py-4 rounded-lg min-h-[160px] outline-none focus:border-brand-500 focus:bg-white transition-all font-medium resize-none"

@@ -394,11 +394,13 @@ export default function TeacherSession() {
             <h3 className="text-xl md:text-3xl font-bold text-slate-900 tracking-tight font-serif leading-tight mb-4 md:mb-6">
               {session.question_title}
             </h3>
-            <div className="p-6 bg-slate-50 rounded-xl border border-slate-100">
-               <p className="text-slate-600 leading-relaxed max-w-4xl font-medium">
-                 {session.question_prompt}
-               </p>
-            </div>
+            {session.question_prompt && (
+              <div className="p-6 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-slate-600 leading-relaxed max-w-4xl font-medium">
+                  {session.question_prompt}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
