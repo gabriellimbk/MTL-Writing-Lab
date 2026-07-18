@@ -8,7 +8,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
 import FeedbackContent from '../components/FeedbackContent';
 import FeedbackAccordion from '../components/FeedbackAccordion';
-import { getOverallExaminerComment } from '../lib/feedback';
+import FeedbackLanguageToggle, { type FeedbackLanguage } from '../components/FeedbackLanguageToggle';
+import { getEstimatedRubricAlignment, getFeedbackLanguageVersion, getOverallExaminerComment, hasBahasaFeedback } from '../lib/feedback';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -589,7 +590,7 @@ export default function StudentEditor() {
                     />
                     <AnalysisCard 
                       title="Estimated Rubric Alignment" 
-                      content={feedback.structure_notes} 
+                      content={getEstimatedRubricAlignment(feedback)}
                       theme="blue" 
                       icon={<BookOpen className="w-4 h-4" />} 
                     />
@@ -705,14 +706,7 @@ export default function StudentEditor() {
               </button>
             </div>
 
-            <div className="space-y-4">
-              <FeedbackAccordion items={[
-                { title: 'What is Working', content: feedback.strengths, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'mint' },
-                { title: 'What is Limiting the Score', content: feedback.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
-                { title: 'How to Reach the Next Band', content: feedback.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
-                { title: 'Estimated Rubric Alignment', content: feedback.structure_notes, icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
-                { title: 'Overall Examiner Comment', content: getOverallExaminerComment(feedback), icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
-              ]} />
+            <FeedbackLanguageModalContent feedback={feedback} />
               {paragraphFeedback.length > 0 && (
                 <div className="p-5 rounded-xl border bg-white border-slate-200 space-y-3">
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 opacity-60">
@@ -736,7 +730,6 @@ export default function StudentEditor() {
                   </div>
                 </div>
               )}
-            </div>
           </motion.div>
         </div>
       )}
@@ -794,6 +787,29 @@ export default function StudentEditor() {
            <span className="text-slate-600">V1.0.4-Geometric</span>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function FeedbackLanguageModalContent({ feedback }: { feedback: any }) {
+  const [language, setLanguage] = useState<FeedbackLanguage>('english');
+  const activeFeedback = getFeedbackLanguageVersion(feedback, language);
+
+  return (
+    <div className="space-y-4">
+      <FeedbackLanguageToggle value={language} onChange={setLanguage} />
+      {language === 'bahasa' && !hasBahasaFeedback(feedback) && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+          Bahasa Melayu feedback is not available for this older saved response. Generate feedback again to create both language versions.
+        </p>
+      )}
+      <FeedbackAccordion items={[
+        { title: 'What is Working', content: activeFeedback?.strengths, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'mint' },
+        { title: 'What is Limiting the Score', content: activeFeedback?.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
+        { title: 'How to Reach the Next Band', content: activeFeedback?.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
+        { title: 'Estimated Rubric Alignment', content: getEstimatedRubricAlignment(activeFeedback), icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
+        { title: 'Overall Examiner Comment', content: getOverallExaminerComment(activeFeedback), icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
+      ]} />
     </div>
   );
 }

@@ -15,7 +15,8 @@ import { motion } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import FeedbackContent from '../components/FeedbackContent';
 import FeedbackAccordion from '../components/FeedbackAccordion';
-import { getOverallExaminerComment } from '../lib/feedback';
+import FeedbackLanguageToggle, { type FeedbackLanguage } from '../components/FeedbackLanguageToggle';
+import { getEstimatedRubricAlignment, getFeedbackLanguageVersion, getOverallExaminerComment, hasBahasaFeedback } from '../lib/feedback';
 
 function cn(...classes: any[]) {
   return classes.filter(Boolean).join(' ');
@@ -327,7 +328,7 @@ export default function Display() {
             <FeedbackCard title="What is Working" content={feedback?.strengths} icon={<CheckCircle2 className="w-4 h-4" />} tone="green" />
             <FeedbackCard title="What is Limiting the Score" content={feedback?.improvements} icon={<AlertCircle className="w-4 h-4" />} tone="amber" />
             <FeedbackCard title="How to Reach the Next Band" content={feedback?.next_step} icon={<Sparkles className="w-4 h-4" />} tone="slate" />
-            <FeedbackCard title="Estimated Rubric Alignment" content={feedback?.structure_notes} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
+            <FeedbackCard title="Estimated Rubric Alignment" content={getEstimatedRubricAlignment(feedback)} icon={<BookOpen className="w-4 h-4" />} tone="blue" />
             <FeedbackCard title="Overall Examiner Comment" content={getOverallExaminerComment(feedback)} icon={<MessageSquare className="w-4 h-4" />} tone="slate" />
           </section>
 
@@ -392,6 +393,9 @@ function IconPanelButton({ title, disabled, onClick, children }: { title: string
 }
 
 function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, teacherComments, peerComments }: any) {
+  const [language, setLanguage] = useState<FeedbackLanguage>('english');
+  const activeFeedback = getFeedbackLanguageVersion(feedback, language);
+
   return (
     <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
       <motion.div
@@ -419,13 +423,21 @@ function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, t
         </div>
 
         {openPanel === 'ai' && (
-          <FeedbackAccordion items={[
-            { title: 'What is Working', content: feedback?.strengths, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'mint' },
-            { title: 'What is Limiting the Score', content: feedback?.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
-            { title: 'How to Reach the Next Band', content: feedback?.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
-            { title: 'Estimated Rubric Alignment', content: feedback?.structure_notes, icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
-            { title: 'Overall Examiner Comment', content: getOverallExaminerComment(feedback), icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
-          ]} />
+          <>
+            <FeedbackLanguageToggle value={language} onChange={setLanguage} />
+            {language === 'bahasa' && !hasBahasaFeedback(feedback) && (
+              <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
+                Bahasa Melayu feedback is not available for this older saved response. Generate feedback again to create both language versions.
+              </p>
+            )}
+            <FeedbackAccordion items={[
+              { title: 'What is Working', content: activeFeedback?.strengths, icon: <CheckCircle2 className="h-4 w-4" />, tone: 'mint' },
+              { title: 'What is Limiting the Score', content: activeFeedback?.improvements, icon: <AlertCircle className="h-4 w-4" />, tone: 'peach' },
+              { title: 'How to Reach the Next Band', content: activeFeedback?.next_step, icon: <Sparkles className="h-4 w-4" />, tone: 'lavender' },
+              { title: 'Estimated Rubric Alignment', content: getEstimatedRubricAlignment(activeFeedback), icon: <BookOpen className="h-4 w-4" />, tone: 'sky' },
+              { title: 'Overall Examiner Comment', content: getOverallExaminerComment(activeFeedback), icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
+            ]} />
+          </>
         )}
 
         {openPanel === 'paragraph' && (

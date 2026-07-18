@@ -77,16 +77,17 @@ Comment briefly on whether the writing appears Highly Personalised, Mostly Perso
 Writing Consistency Analysis:
 If previous writing samples from the same student are available, compare the current submission against the student's historical writing profile. Consider vocabulary sophistication, grammar accuracy, sentence complexity, argument development, evaluation skills, paragraph organisation, writing style and tone. Categorise as Consistent, Mild Shift Detected, or Significant Shift Detected. Give observations and confidence: Low, Medium, or High. Do not state that AI was used. Do not accuse the student of misconduct. Use neutral language such as "writing profile shift" or "writing inconsistency".
 
-Return only a JSON object with these keys:
+Return only a JSON object with exactly these top-level keys: english and bahasa.
+Each key must contain the following fields:
 - strengths: "What is Working" with 2 to 3 specific strengths.
 - improvements: "What is Limiting the Score" explaining the biggest Content weakness and biggest Language weakness.
 - next_step: "How to Reach the Next Band" with one concrete improvement and a short example based on the student's topic, not a full rewrite.
-- structure_notes: "Estimated Rubric Alignment" with Content band and reason, and Language band and reason. Do not give exact marks.
+- structure_notes: Return only these four labelled lines, with no introductory heading: "Content (ISI): Band [1-4]", "Content Reason: [one short evidence-based sentence explaining why the submitted writing fits this band]", "Language (BAHASA): Band [1-4]", and "Language Reason: [one short evidence-based sentence explaining why the submitted writing fits this band]". Do not include an overall examiner comment in this field and do not give exact marks.
 - overall_comment: "Overall Examiner Comment" with a short 1–2 sentence summary describing what is preventing the essay from reaching a higher band.
 - grammar_notes: "Authenticity Check and Writing Consistency Analysis". If no previous samples are provided, say the consistency estimate has lower confidence because no previous samples are available.
 - paragraph_feedback: an empty array unless a very short paragraph-specific note is essential.
 
-All values except paragraph_feedback must be plain strings, not arrays or nested objects.
+The english object must be written in clear English. The bahasa object must communicate the same evidence and judgement in natural, formal Bahasa Melayu suitable for an H2 MLL student. Do not translate labels such as Content (ISI) or Language (BAHASA) into unrelated terminology. Keep each language version within 200 words. All values except paragraph_feedback must be plain strings, not arrays or nested objects.
 `;
 
 function parseJsonObjectFromModel(text: string) {
@@ -125,7 +126,7 @@ function formatFeedbackValue(value: any): string {
   return String(value);
 }
 
-function normalizeAiFeedback(feedback: any) {
+function normalizeFeedbackLanguage(feedback: any) {
   return {
     strengths: formatFeedbackValue(feedback?.strengths),
     improvements: formatFeedbackValue(feedback?.improvements),
@@ -135,6 +136,46 @@ function normalizeAiFeedback(feedback: any) {
     grammar_notes: formatFeedbackValue(feedback?.grammar_notes),
     paragraph_feedback: Array.isArray(feedback?.paragraph_feedback) ? feedback.paragraph_feedback : [],
   };
+}
+
+function normalizeAiFeedback(feedback: any) {
+  const english = normalizeFeedbackLanguage(feedback?.english || feedback);
+  const bahasa = normalizeFeedbackLanguage(feedback?.bahasa || feedback?.bahasa_melayu || feedback?.malay || {});
+
+  return {
+    ...english,
+    english,
+    bahasa,
+  };
+}
+
+function getEstimatedRubricAlignmentForPdf(value: any) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const { overall_comment, ...rubricNotes } = value;
+    return formatFeedbackValue(rubricNotes);
+  }
+
+  if (typeof value === "string") {
+    return value.replace(/\n?\s*overall(?: examiner)? comment\s*:\s*[\s\S]*$/i, "").trim();
+  }
+
+  return formatFeedbackValue(value);
+}
+
+function getOverallExaminerCommentForPdf(feedback: any) {
+  if (feedback?.overall_comment) return formatFeedbackValue(feedback.overall_comment);
+
+  const structureNotes = feedback?.structure_notes;
+  if (structureNotes && typeof structureNotes === "object" && structureNotes.overall_comment) {
+    return formatFeedbackValue(structureNotes.overall_comment);
+  }
+
+  if (typeof structureNotes === "string") {
+    const match = structureNotes.match(/overall(?: examiner)? comment\s*:\s*([\s\S]*)/i);
+    return match?.[1]?.trim() || "";
+  }
+
+  return "";
 }
 
 function getBearerToken(req: express.Request) {
@@ -400,8 +441,8 @@ function addCompactFeedback(doc: PDFKit.PDFDocument, feedback: any) {
   pdfLabel(doc, "What is Working", feedback.strengths);
   pdfLabel(doc, "What is Limiting the Score", feedback.improvements);
   pdfLabel(doc, "How to Reach the Next Band", feedback.next_step);
-  pdfLabel(doc, "Estimated Rubric Alignment", feedback.structure_notes);
-  pdfLabel(doc, "Overall Examiner Comment", feedback.overall_comment || feedback.structure_notes);
+  pdfLabel(doc, "Estimated Rubric Alignment", getEstimatedRubricAlignmentForPdf(feedback.structure_notes));
+  pdfLabel(doc, "Overall Examiner Comment", getOverallExaminerCommentForPdf(feedback));
 
   const paragraphFeedback = Array.isArray(feedback.paragraph_feedback) ? feedback.paragraph_feedback : [];
   if (paragraphFeedback.length > 0) {
