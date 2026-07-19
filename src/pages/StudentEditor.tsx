@@ -437,9 +437,9 @@ export default function StudentEditor() {
 
         {/* Active/Ended State */}
         {(session.status === 'active' || session.status === 'ended') && (
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            <main className="flex-1 bg-[#faf8f3] p-4 md:p-12 overflow-y-auto flex justify-center">
-               <div className="w-full max-w-3xl bg-white shadow-geometric border border-slate-200 rounded-xl min-h-[600px] md:min-h-[1000px] p-6 md:p-16 flex flex-col relative">
+          <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+            <main className="flex-1 min-h-0 bg-[#faf8f3] p-4 md:p-12 overflow-y-auto flex justify-center items-start">
+               <div className="w-full max-w-3xl h-fit min-h-[600px] md:min-h-[1000px] shrink-0 self-start bg-white shadow-geometric border border-slate-200 rounded-xl p-6 md:p-16 flex flex-col relative">
                   <div className="mb-6 md:mb-8 border-b border-slate-100 pb-6 md:pb-8">
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div>
@@ -497,16 +497,13 @@ export default function StudentEditor() {
 
         {/* Peer Review State */}
         {session.status === 'peer_review' && peerEssay && (
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
             <aside className="w-full md:w-80 bg-white border-b md:border-b-0 md:border-r border-slate-200 flex flex-col shrink-0 p-5 md:p-8 overflow-y-auto max-h-52 md:max-h-none">
                <div className="space-y-8">
                   <div>
                     <h3 className="flex items-center gap-2 text-[10px] font-black text-purple-600 uppercase tracking-widest mb-4 bg-purple-50 px-4 py-2 rounded-lg border border-purple-100">
                       <RefreshCcw className="w-3.5 h-3.5" /> Peer Analysis Task
                     </h3>
-                    <p className="text-slate-600 text-sm leading-relaxed font-medium">
-                      Review the student contribution and leave <span className="font-black text-purple-600 underline underline-offset-4 decoration-2">three critical comments</span>.
-                    </p>
                   </div>
 
                   <div className="pt-8 border-t border-slate-100 space-y-4">
@@ -527,8 +524,8 @@ export default function StudentEditor() {
                </div>
             </aside>
 
-            <main className="flex-1 bg-[#faf8f3] p-4 md:p-12 overflow-y-auto flex justify-center">
-              <div className="w-full max-w-3xl bg-white shadow-geometric border border-slate-200 rounded-xl min-h-[600px] md:min-h-[1000px] p-6 md:p-16 flex flex-col">
+            <main className="flex-1 min-h-0 bg-[#faf8f3] p-4 md:p-12 overflow-y-auto flex justify-center items-start">
+              <div className="w-full max-w-3xl h-fit min-h-[600px] md:min-h-[1000px] shrink-0 self-start bg-white shadow-geometric border border-slate-200 rounded-xl p-6 md:p-16 flex flex-col">
                 <header className="mb-6 md:mb-8 text-center border-b border-slate-50 pb-6 md:pb-8 opacity-40">
                   <h1 className="text-3xl md:text-5xl font-serif text-slate-900 mb-2">Classmate's Draft</h1>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Review Mode Enabled</p>

@@ -51,8 +51,16 @@ function getListItem(line: string) {
   return null;
 }
 
+function normalizeFeedbackLineBreaks(text: string) {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+(?=\d+[.)]\s+)/g, '\n')
+    .replace(/[ \t]+(?=•\s+)/g, '\n')
+    .replace(/[ \t]+(?=[-*]\s+)/g, '\n');
+}
+
 export default function FeedbackContent({ content, emptyText = 'No feedback generated yet.' }: { content: any; emptyText?: string }) {
-  const raw = stringifyFeedback(content).replace(/\r\n/g, '\n').trim();
+  const raw = normalizeFeedbackLineBreaks(stringifyFeedback(content)).trim();
 
   if (!raw) {
     return <p className="text-sm leading-7 text-app-muted">{emptyText}</p>;
@@ -64,35 +72,42 @@ export default function FeedbackContent({ content, emptyText = 'No feedback gene
     <div className="feedback-content">
       {blocks.map((block, blockIndex) => {
         const lines = block.split('\n').map(line => line.trim()).filter(Boolean);
-        const listType = lines.length > 0 ? getListItem(lines[0])?.type : null;
-
-        if (listType && lines.every(line => getListItem(line)?.type === listType)) {
-          const List = listType;
-          return (
-            <List key={blockIndex}>
-              {lines.map((line, lineIndex) => {
-                const item = getListItem(line);
-                return <li key={lineIndex}>{item ? renderLabelledLine(item.text) : renderInline(line)}</li>;
-              })}
-            </List>
-          );
-        }
-
         return (
           <div key={blockIndex} className="feedback-block">
-            {lines.map((line, lineIndex) => {
-              const item = getListItem(line);
-              if (item) {
-                return (
-                  <div key={lineIndex} className="feedback-bullet">
-                    <span aria-hidden="true">•</span>
-                    <span>{renderLabelledLine(item.text)}</span>
-                  </div>
-                );
+            {(() => {
+              const elements: React.ReactNode[] = [];
+              let lineIndex = 0;
+
+              while (lineIndex < lines.length) {
+                const item = getListItem(lines[lineIndex]);
+                if (item) {
+                  const listLines = [];
+                  const listType = item.type;
+
+                  while (lineIndex < lines.length) {
+                    const nextItem = getListItem(lines[lineIndex]);
+                    if (!nextItem || nextItem.type !== listType) break;
+                    listLines.push(nextItem.text);
+                    lineIndex += 1;
+                  }
+
+                  const List = listType;
+                  elements.push(
+                    <List key={`list-${lineIndex}`}>
+                      {listLines.map((listLine, listIndex) => (
+                        <li key={listIndex}>{renderLabelledLine(listLine)}</li>
+                      ))}
+                    </List>
+                  );
+                  continue;
+                }
+
+                elements.push(<p key={`line-${lineIndex}`}>{renderLabelledLine(lines[lineIndex])}</p>);
+                lineIndex += 1;
               }
 
-              return <p key={lineIndex}>{renderLabelledLine(line)}</p>;
-            })}
+              return elements;
+            })()}
           </div>
         );
       })}
