@@ -54,6 +54,8 @@ function getListItem(line: string) {
 function normalizeFeedbackLineBreaks(text: string) {
   return text
     .replace(/\r\n/g, '\n')
+    .replace(/;\s+(?=(?:content|language)(?:\s*\([^)]*\))?\s*:)/gi, '\n')
+    .replace(/\s+(?=(?:content|language)(?:\s*\([^)]*\))?\s*:)/gi, '\n')
     .replace(/[ \t]+(?=\d+[.)]\s+)/g, '\n')
     .replace(/[ \t]+(?=•\s+)/g, '\n')
     .replace(/[ \t]+(?=[-*]\s+)/g, '\n');
