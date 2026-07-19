@@ -205,6 +205,7 @@ export default function StudentEditor() {
   const [loadError, setLoadError] = useState('');
   const [timerRemainingMs, setTimerRemainingMs] = useState<number | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const writingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const openedFeedbackKeyRef = useRef('');
 
   const fetchStudentState = useCallback(async () => {
@@ -270,6 +271,10 @@ export default function StudentEditor() {
   }, [session]);
 
   useEffect(() => {
+    if (session?.status !== 'returned') {
+      setShowAIFeedback(false);
+      return;
+    }
     if (!feedback) return;
 
     const feedbackKey = `${essay?.id || sessionId}:${JSON.stringify(feedback)}`;
@@ -277,7 +282,21 @@ export default function StudentEditor() {
 
     openedFeedbackKeyRef.current = feedbackKey;
     setShowAIFeedback(true);
-  }, [essay?.id, feedback, sessionId]);
+  }, [essay?.id, feedback, session?.status, sessionId]);
+
+  useEffect(() => {
+    const textarea = writingTextareaRef.current;
+    if (!textarea) return;
+
+    const resize = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [content, lockedContent]);
 
   // Autosave logic
   const saveEssay = useCallback(async (newContent: string) => {
@@ -476,10 +495,14 @@ export default function StudentEditor() {
                       Continue Writing Below
                     </p>
                   )}
-                  <textarea 
+                  <textarea
+                    ref={writingTextareaRef}
                     readOnly={session.status !== 'active' || timerExpired}
                     placeholder={lockedContent ? "Continue your writing here..." : "Capture your analysis here..."}
-                    className="flex-1 w-full text-xl leading-[1.8] outline-none border-none resize-none font-serif text-slate-800 placeholder:text-slate-200"
+                    className={cn(
+                      "w-full text-xl leading-[1.8] outline-none border-none resize-none font-serif text-slate-800 placeholder:text-slate-200",
+                      lockedContent ? "min-h-[28rem] md:min-h-[42rem]" : "min-h-[24rem] flex-1"
+                    )}
                     value={content}
                     onChange={handleContentChange}
                   />
