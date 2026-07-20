@@ -2,7 +2,7 @@ import express from "express";
 import * as dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
-import { randomUUID } from "crypto";
+import { randomInt, randomUUID } from "crypto";
 import PDFDocument from "pdfkit";
 
 dotenv.config();
@@ -34,6 +34,17 @@ const TIMER_MINUTE_OPTIONS = [
   ...Array.from({ length: 20 }, (_, index) => index + 1),
   25, 30, 35, 40, 45, 50, 60, 70, 80
 ];
+
+function shuffle<T>(items: T[]) {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+
+  return shuffled;
+}
 
 const H2_MLL_PAPER1_EXAMINER_PROMPT = `
 You are an experienced Singapore GCE A-Level H2 Malay Language and Literature (9576) examiner.
@@ -1338,7 +1349,7 @@ app.post("/api/peer-review/assign", async (req, res) => {
     // 1. Get all essays for the session
     const { data: essays, error: essaysError } = await admin
       .from(TABLES.essays)
-      .select("id, student_id")
+      .select("id, student_id, assigned_essay_id")
       .eq("session_id", sessionId);
 
     if (essaysError) throw essaysError;
@@ -1346,8 +1357,27 @@ app.post("/api/peer-review/assign", async (req, res) => {
       return res.status(400).json({ error: "At least 2 essays are needed for peer review" });
     }
 
-    const updates = essays.map((essay, index) => {
-      const targetEssay = essays[(index + 1) % essays.length];
+    // Randomise the cycle for every swap, while keeping each student assigned exactly one essay.
+    const previousAssignments = new Map(
+      essays.map(essay => [String(essay.id), essay.assigned_essay_id ? String(essay.assigned_essay_id) : ""])
+    );
+    let shuffledEssays = shuffle(essays);
+
+    // Avoid repeating the same cycle when a session is swapped again.
+    if (essays.length > 2) {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const repeatsPreviousCycle = shuffledEssays.every((essay, index) => {
+          const targetEssay = shuffledEssays[(index + 1) % shuffledEssays.length];
+          return previousAssignments.get(String(essay.id)) === String(targetEssay.id);
+        });
+
+        if (!repeatsPreviousCycle) break;
+        shuffledEssays = shuffle(essays);
+      }
+    }
+
+    const updates = shuffledEssays.map((essay, index) => {
+      const targetEssay = shuffledEssays[(index + 1) % shuffledEssays.length];
       return admin
         .from(TABLES.essays)
         .update({
