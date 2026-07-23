@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Loader2, Save, Send, AlertCircle, Clock, 
-  MessageSquare, Sparkles, BookOpen, ChevronRight, CheckCircle2, RefreshCcw, X
+  MessageSquare, Sparkles, BookOpen, ChevronRight, CheckCircle2, RefreshCcw, X, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatTimerRemaining, getSessionTimerRemainingMs, isTimerLow } from '../lib/session-timer';
@@ -199,6 +199,8 @@ export default function StudentEditor() {
   const [myComments, setMyComments] = useState<any[]>([]);
   const [selectedPeerFeedback, setSelectedPeerFeedback] = useState<{ paragraphIndex: number; lineIndex: number; comments: any[] } | null>(null);
   const [showAIFeedback, setShowAIFeedback] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -358,6 +360,35 @@ export default function StudentEditor() {
         ...peerEssay,
         peer_comments: [...(Array.isArray(peerEssay.peer_comments) ? peerEssay.peer_comments : []), comment]
       });
+    }
+  };
+
+  const downloadMyPdf = async () => {
+    if (!sessionId || !studentId || !studentToken) return;
+
+    setDownloadingPdf(true);
+    setPdfError('');
+    try {
+      const params = new URLSearchParams({ studentId, studentToken });
+      const response = await fetch(`/api/student/session/${encodeURIComponent(sessionId)}/report.pdf?${params.toString()}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || 'Could not download your PDF report.');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${session.session_code || 'writing-lab'}-my-work-feedback.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      setPdfError(error.message || 'Could not download your PDF report.');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -669,10 +700,24 @@ export default function StudentEditor() {
             <main className="flex-1 bg-white p-6 md:p-24 overflow-y-auto flex justify-center">
                <div className="w-full max-w-3xl">
                   <div className="mb-5 md:mb-8 border-b border-slate-100 pb-5 md:pb-8 flex items-start justify-between gap-4">
-                    <h1 className="text-3xl md:text-4xl font-serif text-slate-900 leading-tight">
-                      {session.question_title}
-                    </h1>
-                    {feedback && (
+                    <div>
+                      <h1 className="text-3xl md:text-4xl font-serif text-slate-900 leading-tight">
+                        {session.question_title}
+                      </h1>
+                      {pdfError && <p className="mt-2 text-xs font-semibold text-red-600">{pdfError}</p>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        title="Download my work and feedback as PDF"
+                        aria-label="Download my work and feedback as PDF"
+                        onClick={downloadMyPdf}
+                        disabled={downloadingPdf}
+                        className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:scale-105 disabled:opacity-50 disabled:cursor-wait flex items-center justify-center shadow-sm transition-all shrink-0"
+                      >
+                        {downloadingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                      </button>
+                      {feedback && (
                       <button
                         type="button"
                         title="AI feedback"
@@ -681,7 +726,8 @@ export default function StudentEditor() {
                       >
                         <Sparkles className="w-5 h-5" />
                       </button>
-                    )}
+                      )}
+                    </div>
                   </div>
                   <div className="space-y-8 font-serif text-xl leading-[2] text-slate-800/70">
                     {returnedEssayParagraphs.map((paragraph, idx) => (

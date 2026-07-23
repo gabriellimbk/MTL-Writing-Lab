@@ -56,7 +56,7 @@ function normalizeFeedbackLineBreaks(text: string) {
     .replace(/\r\n/g, '\n')
     .replace(/;\s+(?=(?:content|language)(?:\s*\([^)]*\))?\s*:)/gi, '\n')
     .replace(/\s+(?=(?:content|language)(?:\s*\([^)]*\))?\s*:)/gi, '\n')
-    .replace(/[ \t]+(?=\d+[.)]\s+)/g, '\n')
+    .replace(/(?<!Band)[ \t]+(?=\d+[.)]\s+)/gi, '\n')
     .replace(/[ \t]+(?=•\s+)/g, '\n')
     .replace(/[ \t]+(?=[-*]\s+)/g, '\n');
 }

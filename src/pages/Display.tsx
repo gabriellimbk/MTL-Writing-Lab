@@ -313,9 +313,6 @@ export default function Display() {
           <IconPanelButton title="AI feedback" disabled={!feedback} onClick={() => setOpenPanel('ai')}>
             {feedback ? <Sparkles className="w-5 h-5" /> : <Loader2 className="w-5 h-5 animate-spin" />}
           </IconPanelButton>
-          <IconPanelButton title="Paragraph guidance" disabled={paragraphFeedback.length === 0} onClick={() => setOpenPanel('paragraph')}>
-            <BookOpen className="w-5 h-5" />
-          </IconPanelButton>
           <IconPanelButton title="Comments" disabled={comments.length === 0} onClick={() => setOpenPanel('comments')}>
             <MessageSquare className="w-5 h-5" />
           </IconPanelButton>
@@ -364,7 +361,6 @@ export default function Display() {
           openPanel={openPanel}
           setOpenPanel={setOpenPanel}
           feedback={feedback}
-          paragraphFeedback={paragraphFeedback}
           teacherComments={teacherComments}
           peerComments={peerComments}
         />
@@ -392,7 +388,7 @@ function IconPanelButton({ title, disabled, onClick, children }: { title: string
   );
 }
 
-function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, teacherComments, peerComments }: any) {
+function FeedbackModal({ openPanel, setOpenPanel, feedback, teacherComments, peerComments }: any) {
   const [language, setLanguage] = useState<FeedbackLanguage>('english');
   const activeFeedback = getFeedbackLanguageVersion(feedback, language);
 
@@ -406,10 +402,10 @@ function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, t
         <div className="flex items-start justify-between gap-6 mb-6">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-500 mb-2">
-              {openPanel === 'ai' ? 'AI Feedback' : openPanel === 'paragraph' ? 'Paragraph Guidance' : 'Comments'}
+              {openPanel === 'ai' ? 'AI Feedback' : 'Comments'}
             </p>
             <h3 className="text-xl font-black text-slate-900">
-              {openPanel === 'ai' ? 'Generated Feedback' : openPanel === 'paragraph' ? 'Paragraph Notes' : 'Teacher and Peer Comments'}
+              {openPanel === 'ai' ? 'Generated Feedback' : 'Teacher and Peer Comments'}
             </h3>
           </div>
           <button
@@ -438,20 +434,6 @@ function FeedbackModal({ openPanel, setOpenPanel, feedback, paragraphFeedback, t
               { title: 'Overall Examiner Comment', content: getOverallExaminerComment(activeFeedback), icon: <MessageSquare className="h-4 w-4" />, tone: 'rose' }
             ]} />
           </>
-        )}
-
-        {openPanel === 'paragraph' && (
-          <div className="space-y-2">
-            {paragraphFeedback.map((item: any, index: number) => (
-              <div key={`${item.paragraph_number || index}-${index}`} className="bg-slate-50 border border-slate-100 rounded-lg p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-500 mb-1">
-                  Paragraph {item.paragraph_number || index + 1}
-                  {item.focus ? ` - ${item.focus}` : ''}
-                </p>
-                <FeedbackContent content={item.feedback} />
-              </div>
-            ))}
-          </div>
         )}
 
         {openPanel === 'comments' && (

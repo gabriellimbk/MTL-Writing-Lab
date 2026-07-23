@@ -1243,6 +1243,82 @@ app.get("/api/teacher/session/:sessionId/report.pdf", async (req, res) => {
   }
 });
 
+app.get("/api/student/session/:sessionId/report.pdf", async (req, res) => {
+  const { sessionId } = req.params;
+  const studentId = String(req.query.studentId || "");
+  const studentToken = String(req.query.studentToken || "");
+
+  try {
+    const admin = getSupabaseAdmin();
+    const student = await validateStudentSession(sessionId, studentId, studentToken);
+    const [
+      { data: session, error: sessionError },
+      { data: essay, error: essayError }
+    ] = await Promise.all([
+      admin.from(TABLES.sessions).select("*").eq("id", sessionId).eq("record_type", "session").single(),
+      admin.from(TABLES.essays).select("*").eq("session_id", sessionId).eq("student_id", studentId).single()
+    ]);
+
+    if (sessionError || !session) throw new Error("Session not found");
+    if (essayError || !essay) throw new Error("Essay not found");
+    if (session.status !== "returned") {
+      return res.status(400).json({ error: "Your PDF is available after your work has been returned." });
+    }
+
+    const comments = await enrichCommentsWithNames(
+      sessionId,
+      Array.isArray(essay.peer_comments) ? essay.peer_comments : []
+    );
+    const teacherComments = comments.filter((comment: any) => comment.commenter_type === "teacher");
+    const peerComments = comments.filter((comment: any) => comment.commenter_type !== "teacher");
+    const studentName = essay.display_name || student.display_name || "Student";
+    const wordCount = cleanPdfText(essay.content).split(/\s+/).filter(Boolean).length;
+
+    const doc = new PDFDocument({
+      size: "A4",
+      margins: { top: 48, bottom: 48, left: 54, right: 54 },
+      info: { Title: `Writing Lab - ${studentName}`, Author: "Writing Lab" }
+    });
+
+    const filename = `${safeFilename(session.session_code || "writing-lab")}-my-work-feedback.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    doc.pipe(res);
+
+    doc.font("Helvetica-Bold").fontSize(18).fillColor("#111827").text("My Writing & Feedback");
+    doc.moveDown(0.4);
+    doc.font("Helvetica").fontSize(10).fillColor("#334155")
+      .text(`Student: ${studentName}`)
+      .text(`Session: ${session.session_code || "N/A"}`)
+      .text(`Prompt: ${session.question_title || "Untitled prompt"}`)
+      .text(`Words: ${wordCount}`)
+      .text(`Generated: ${new Date().toLocaleString("en-SG", { timeZone: "Asia/Singapore" })}`);
+    if (session.question_prompt) {
+      doc.moveDown(0.5);
+      pdfLabel(doc, "Question Description", session.question_prompt);
+    }
+
+    pdfHeading(doc, "My Submission", 11);
+    doc.font("Helvetica").fontSize(10).fillColor("#111827").text(
+      cleanPdfText(essay.content) || "No submission text.",
+      { lineGap: 2, paragraphGap: 5 }
+    );
+
+    pdfHeading(doc, "AI Feedback", 11);
+    addCompactFeedback(doc, essay.ai_feedback);
+    addCommentsSection(doc, "Teacher Comments", teacherComments);
+    addCommentsSection(doc, "Peer Comments", peerComments);
+    doc.end();
+  } catch (error: any) {
+    if (!res.headersSent) {
+      const status = error.message?.includes("student session") ? 403 : 500;
+      res.status(status).json({ error: error.message });
+    } else {
+      res.end();
+    }
+  }
+});
+
 // AI Feedback Generation Endpoint
 app.post("/api/ai-feedback", async (req, res) => {
   const { essayId } = req.body;
