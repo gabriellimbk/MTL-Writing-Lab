@@ -88,7 +88,7 @@ export default function Landing() {
           </div>
           <div className="space-y-2">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tighter text-slate-900 uppercase">
-              Writing<span className="text-brand-500">Lab</span>
+              Menggilap <span className="text-brand-500">Potensi</span>
             </h1>
             <p className="text-slate-500 font-medium tracking-tight">
               A precise workspace for classroom writing and peer analysis.

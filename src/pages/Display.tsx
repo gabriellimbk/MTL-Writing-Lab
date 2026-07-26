@@ -266,7 +266,7 @@ export default function Display() {
               <p className="text-sm font-black text-brand-500 tracking-widest uppercase">{essay.session?.session_code || 'N/A'}</p>
             </div>
             <div className="px-4 py-2 bg-slate-900 rounded-lg text-white text-[10px] font-black uppercase tracking-widest">
-              Writing Lab
+              Menggilap Potensi
             </div>
           </div>
         </div>

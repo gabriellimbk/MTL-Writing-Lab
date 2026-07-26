@@ -224,9 +224,9 @@ export default function TeacherSession() {
       <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-brand-500 rounded flex items-center justify-center">
-            <span className="text-white font-bold text-lg leading-none">W</span>
+            <span className="text-white font-bold text-lg leading-none">M</span>
           </div>
-          <h1 className="text-xl font-bold tracking-tight uppercase">Writing Lab <span className="text-slate-400 font-normal">/ Session Console</span></h1>
+          <h1 className="text-xl font-bold tracking-tight uppercase">Menggilap Potensi <span className="text-slate-400 font-normal">/ Session Console</span></h1>
         </div>
         <div className="flex items-center gap-6">
           <div className={cn(

@@ -192,9 +192,9 @@ export default function TeacherDashboard() {
         <div className="p-8 pb-4">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-8 h-8 bg-brand-500 rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">W</span>
+              <span className="text-white font-bold text-sm">M</span>
             </div>
-            <h1 className="text-lg font-extrabold tracking-tight uppercase">Writing Lab</h1>
+            <h1 className="text-lg font-extrabold tracking-tight uppercase">Menggilap Potensi</h1>
           </div>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Teacher Console</p>
         </div>

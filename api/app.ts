@@ -34,6 +34,7 @@ const TIMER_MINUTE_OPTIONS = [
   ...Array.from({ length: 20 }, (_, index) => index + 1),
   25, 30, 35, 40, 45, 50, 60, 70, 80
 ];
+const APP_NAME = "Menggilap Potensi";
 
 function shuffle<T>(items: T[]) {
   const shuffled = [...items];
@@ -160,6 +161,25 @@ function normalizeAiFeedback(feedback: any) {
   };
 }
 
+function hasFeedbackContent(feedback: any) {
+  if (!feedback) return false;
+  return Boolean(
+    formatFeedbackValue(feedback.strengths) ||
+    formatFeedbackValue(feedback.improvements) ||
+    formatFeedbackValue(feedback.next_step) ||
+    formatFeedbackValue(feedback.structure_notes) ||
+    formatFeedbackValue(feedback.overall_comment) ||
+    formatFeedbackValue(feedback.grammar_notes) ||
+    (Array.isArray(feedback.paragraph_feedback) && feedback.paragraph_feedback.length > 0)
+  );
+}
+
+function getBahasaFeedbackForPdf(feedback: any) {
+  const bahasa = feedback?.bahasa || feedback?.bahasa_melayu || feedback?.malay;
+  if (hasFeedbackContent(bahasa)) return bahasa;
+  return feedback?.english || feedback || null;
+}
+
 function getEstimatedRubricAlignmentForPdf(value: any) {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const { overall_comment, ...rubricNotes } = value;
@@ -231,6 +251,29 @@ async function enrichCommentsWithNames(sessionId: string | number, comments: any
       commenter_name: studentNames.get(String(comment.commenter_id)) || "Peer reviewer"
     };
   }));
+}
+
+function anonymizePeerCommentsForStudent(comments: any[]) {
+  return (Array.isArray(comments) ? comments : []).map((comment: any) => {
+    if (comment.commenter_type === "teacher") return comment;
+
+    const { commenter_id, ...rest } = comment;
+    return {
+      ...rest,
+      commenter_type: "peer",
+      commenter_name: "Peer reviewer"
+    };
+  });
+}
+
+function anonymizePeerEssayForStudent(essay: any) {
+  if (!essay) return null;
+  return {
+    id: essay.id,
+    content: essay.content || "",
+    display_name: "Classmate",
+    peer_comments: anonymizePeerCommentsForStudent(essay.peer_comments)
+  };
 }
 
 async function getAuthenticatedUser(req: express.Request, options: { allowAnonymous?: boolean } = {}) {
@@ -445,23 +488,23 @@ function pdfLabel(doc: PDFKit.PDFDocument, label: string, value: any) {
 
 function addCompactFeedback(doc: PDFKit.PDFDocument, feedback: any) {
   if (!feedback) {
-    pdfLabel(doc, "AI Feedback", "No AI feedback generated.");
+    pdfLabel(doc, "Maklum Balas AI", "Tiada maklum balas AI dijana.");
     return;
   }
 
-  pdfLabel(doc, "What is Working", feedback.strengths);
-  pdfLabel(doc, "What is Limiting the Score", feedback.improvements);
-  pdfLabel(doc, "How to Reach the Next Band", feedback.next_step);
-  pdfLabel(doc, "Estimated Rubric Alignment", getEstimatedRubricAlignmentForPdf(feedback.structure_notes));
-  pdfLabel(doc, "Overall Examiner Comment", getOverallExaminerCommentForPdf(feedback));
+  pdfLabel(doc, "Kekuatan", feedback.strengths);
+  pdfLabel(doc, "Perkara yang Mengehadkan Markah", feedback.improvements);
+  pdfLabel(doc, "Cara Mencapai Band Seterusnya", feedback.next_step);
+  pdfLabel(doc, "Penjajaran Rubrik Anggaran", getEstimatedRubricAlignmentForPdf(feedback.structure_notes));
+  pdfLabel(doc, "Komen Keseluruhan Pemeriksa", getOverallExaminerCommentForPdf(feedback));
 
   const paragraphFeedback = Array.isArray(feedback.paragraph_feedback) ? feedback.paragraph_feedback : [];
   if (paragraphFeedback.length > 0) {
     ensurePdfSpace(doc, 44);
-    doc.font("Helvetica-Bold").fontSize(8).fillColor("#64748b").text("PARAGRAPH NOTES");
+    doc.font("Helvetica-Bold").fontSize(8).fillColor("#64748b").text("NOTA PERENGGAN");
     paragraphFeedback.slice(0, 4).forEach((item: any, index: number) => {
       const paragraph = item.paragraph_number || index + 1;
-      const note = [item.focus, item.feedback, item.next_revision ? `Next: ${item.next_revision}` : ""]
+      const note = [item.focus, item.feedback, item.next_revision ? `Seterusnya: ${item.next_revision}` : ""]
         .map(cleanPdfText)
         .filter(Boolean)
         .join(" - ");
@@ -492,7 +535,7 @@ function addCommentsSection(doc: PDFKit.PDFDocument, title: string, comments: an
 }
 
 function safeFilename(value: string) {
-  return cleanPdfText(value).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "writing-lab";
+  return cleanPdfText(value).replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "menggilap-potensi";
 }
 
 // Health check
@@ -787,11 +830,11 @@ app.get("/api/student/state", async (req, res) => {
     res.json({
       success: true,
       session,
-      essay: { ...essay, peer_comments: peerComments },
+      essay: { ...essay, peer_comments: anonymizePeerCommentsForStudent(peerComments) },
       feedback: essay.ai_feedback || null,
-      peerComments,
-      peerEssay,
-      myComments
+      peerComments: anonymizePeerCommentsForStudent(peerComments),
+      peerEssay: anonymizePeerEssayForStudent(peerEssay),
+      myComments: anonymizePeerCommentsForStudent(myComments)
     });
   } catch (error: any) {
     res.status(error.message?.includes("Invalid student") ? 403 : 500).json({ error: error.message });
@@ -1173,8 +1216,8 @@ app.get("/api/teacher/session/:sessionId/report.pdf", async (req, res) => {
       size: "A4",
       margins: { top: 48, bottom: 48, left: 54, right: 54 },
       info: {
-        Title: `Writing Lab Report - ${session.session_code}`,
-        Author: "Writing Lab"
+        Title: `${APP_NAME} Report - ${session.session_code}`,
+        Author: APP_NAME
       }
     });
 
@@ -1183,7 +1226,7 @@ app.get("/api/teacher/session/:sessionId/report.pdf", async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     doc.pipe(res);
 
-    doc.font("Helvetica-Bold").fontSize(18).fillColor("#111827").text("Writing Lab Submissions & Feedback");
+    doc.font("Helvetica-Bold").fontSize(18).fillColor("#111827").text(`${APP_NAME} Submissions & Feedback`);
     doc.moveDown(0.4);
     doc.font("Helvetica").fontSize(10).fillColor("#334155")
       .text(`Session: ${session.session_code || "N/A"}`)
@@ -1222,8 +1265,8 @@ app.get("/api/teacher/session/:sessionId/report.pdf", async (req, res) => {
         paragraphGap: 5
       });
 
-      pdfHeading(doc, "Compact AI Feedback", 11);
-      addCompactFeedback(doc, essay.ai_feedback);
+      pdfHeading(doc, "Maklum Balas AI", 11);
+      addCompactFeedback(doc, getBahasaFeedbackForPdf(essay.ai_feedback));
       addCommentsSection(doc, "Teacher Comments", teacherComments);
       addCommentsSection(doc, "Peer Comments", peerComments);
     }
@@ -1265,10 +1308,10 @@ app.get("/api/student/session/:sessionId/report.pdf", async (req, res) => {
       return res.status(400).json({ error: "Your PDF is available after your work has been returned." });
     }
 
-    const comments = await enrichCommentsWithNames(
+    const comments = anonymizePeerCommentsForStudent(await enrichCommentsWithNames(
       sessionId,
       Array.isArray(essay.peer_comments) ? essay.peer_comments : []
-    );
+    ));
     const teacherComments = comments.filter((comment: any) => comment.commenter_type === "teacher");
     const peerComments = comments.filter((comment: any) => comment.commenter_type !== "teacher");
     const studentName = essay.display_name || student.display_name || "Student";
@@ -1277,10 +1320,10 @@ app.get("/api/student/session/:sessionId/report.pdf", async (req, res) => {
     const doc = new PDFDocument({
       size: "A4",
       margins: { top: 48, bottom: 48, left: 54, right: 54 },
-      info: { Title: `Writing Lab - ${studentName}`, Author: "Writing Lab" }
+      info: { Title: `${APP_NAME} - ${studentName}`, Author: APP_NAME }
     });
 
-    const filename = `${safeFilename(session.session_code || "writing-lab")}-my-work-feedback.pdf`;
+    const filename = `${safeFilename(session.session_code || "menggilap-potensi")}-my-work-feedback.pdf`;
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     doc.pipe(res);
@@ -1304,8 +1347,8 @@ app.get("/api/student/session/:sessionId/report.pdf", async (req, res) => {
       { lineGap: 2, paragraphGap: 5 }
     );
 
-    pdfHeading(doc, "AI Feedback", 11);
-    addCompactFeedback(doc, essay.ai_feedback);
+    pdfHeading(doc, "Maklum Balas AI", 11);
+    addCompactFeedback(doc, getBahasaFeedbackForPdf(essay.ai_feedback));
     addCommentsSection(doc, "Teacher Comments", teacherComments);
     addCommentsSection(doc, "Peer Comments", peerComments);
     doc.end();

@@ -54,7 +54,7 @@ function normalizeParagraphFeedback(feedback: any) {
 }
 
 function getCommenterLabel(comment: any) {
-  return comment.commenter_name || (comment.commenter_type === 'teacher' ? 'Teacher' : 'Peer reviewer');
+  return comment.commenter_type === 'teacher' ? (comment.commenter_name || 'Teacher') : 'Peer reviewer';
 }
 
 function useRenderedLines(text: string) {
@@ -380,7 +380,7 @@ export default function StudentEditor() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${session.session_code || 'writing-lab'}-my-work-feedback.pdf`;
+      link.download = `${session.session_code || 'menggilap-potensi'}-my-work-feedback.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -428,9 +428,9 @@ export default function StudentEditor() {
       <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between shrink-0 z-20">
         <div className="flex items-center gap-4">
           <div className="w-8 h-8 bg-brand-500 rounded flex items-center justify-center">
-            <span className="text-white font-bold text-lg leading-none">W</span>
+            <span className="text-white font-bold text-lg leading-none">M</span>
           </div>
-          <h1 className="text-xl font-bold tracking-tight uppercase">Writing Lab <span className="text-slate-400 font-normal">/ Writing Console</span></h1>
+          <h1 className="text-xl font-bold tracking-tight uppercase">Menggilap Potensi <span className="text-slate-400 font-normal">/ Writing Console</span></h1>
         </div>
 
         <div className="flex items-center gap-6">
