@@ -441,6 +441,33 @@ function appendContinuationBreak(value: any) {
   return `${content}${CONTINUATION_BREAK}`;
 }
 
+async function appendContinuationBreakSafely(admin: any, essayId: string | number) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const { data: essay, error: essayError } = await admin
+      .from(TABLES.essays)
+      .select("id, content, updated_at")
+      .eq("id", essayId)
+      .single();
+    if (essayError || !essay) throw essayError || new Error("Essay not found");
+
+    const { data: updatedEssay, error: updateError } = await admin
+      .from(TABLES.essays)
+      .update({
+        content: appendContinuationBreak(essay.content),
+        is_submitted: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", essay.id)
+      .eq("updated_at", essay.updated_at)
+      .select("id")
+      .maybeSingle();
+    if (updateError) throw updateError;
+    if (updatedEssay) return;
+  }
+
+  throw new Error("Essay changed while the continuation was being prepared. Please try again.");
+}
+
 function splitContinuationContent(value: any) {
   const parts = String(value || "").split(CONTINUATION_BREAK_PATTERN);
   if (parts.length <= 1) return { locked: "", current: String(value || "") };
@@ -951,7 +978,7 @@ app.post("/api/student/essay", async (req, res) => {
 
     const { data: currentEssay, error: currentEssayError } = await admin
       .from(TABLES.essays)
-      .select("id, content")
+      .select("id, content, updated_at")
       .eq("session_id", sessionId)
       .eq("student_id", studentId)
       .single();
@@ -960,6 +987,10 @@ app.post("/api/student/essay", async (req, res) => {
 
     const existingContent = splitContinuationContent(currentEssay.content);
     const requestedContent = splitContinuationContent(content);
+    if (existingContent.locked && !String(content || "").includes(CONTINUATION_BREAK)) {
+      return res.status(409).json({ error: "This draft changed before the save completed. Please try again." });
+    }
+
     const finalContent = existingContent.locked
       ? mergeContinuationContent(existingContent.locked, requestedContent.current)
       : String(content || "");
@@ -970,12 +1001,15 @@ app.post("/api/student/essay", async (req, res) => {
         content: finalContent,
         updated_at: new Date().toISOString()
       })
-      .eq("session_id", sessionId)
-      .eq("student_id", studentId)
+      .eq("id", currentEssay.id)
+      .eq("updated_at", currentEssay.updated_at)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      return res.status(409).json({ error: "This draft changed before the save completed. Please try again." });
+    }
 
     res.json({ success: true, essay: data });
   } catch (error: any) {
@@ -1044,23 +1078,13 @@ app.post("/api/session/continue", async (req, res) => {
 
     const { data: essays, error: essaysError } = await admin
       .from(TABLES.essays)
-      .select("id, content")
+      .select("id")
       .eq("session_id", sessionId);
     if (essaysError) throw essaysError;
 
-    const updates = (essays || []).map((essay: any) => admin
-      .from(TABLES.essays)
-      .update({
-        content: appendContinuationBreak(essay.content),
-        is_submitted: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", essay.id)
-    );
-
-    const results = await Promise.all(updates);
-    const updateError = results.find(result => result.error)?.error;
-    if (updateError) throw updateError;
+    await Promise.all((essays || []).map((essay: any) => (
+      appendContinuationBreakSafely(admin, essay.id)
+    )));
 
     const continuedTimerMinutes = normalizeTimerMinutes(timerMinutes || session.timer_duration_minutes);
     const continuedTimerFields = getTimerFields(continuedTimerMinutes);

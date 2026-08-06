@@ -36,6 +36,21 @@ function mergeContinuationContent(locked: string, current: string) {
   return locked ? `${locked}\n\n${CONTINUATION_BREAK}\n\n${current}` : current;
 }
 
+function getContinuationRecoveryText(lastSaved: string, localDraft: string, nextLockedContent: string) {
+  if (localDraft === lastSaved) return '';
+  if (localDraft.trim() && nextLockedContent.trimEnd().endsWith(localDraft.trim())) return '';
+  if (localDraft.startsWith(lastSaved)) return localDraft.slice(lastSaved.length).trimStart();
+  return localDraft;
+}
+
+function combineContinuationDraft(serverDraft: string, recoveryText: string) {
+  if (!recoveryText) return serverDraft;
+  if (!serverDraft || serverDraft === recoveryText || serverDraft.endsWith(recoveryText)) {
+    return serverDraft || recoveryText;
+  }
+  return `${serverDraft}\n${recoveryText}`;
+}
+
 function splitEssayParagraphs(content = '') {
   const paragraphs = cleanContinuationMarkers(content).split(/\n{2,}|\n/).map(part => part.trim()).filter(Boolean);
   return paragraphs.length > 0 ? paragraphs : [content || 'Draft Empty'];
@@ -203,14 +218,25 @@ export default function StudentEditor() {
   const [pdfError, setPdfError] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState('');
   const [timerRemainingMs, setTimerRemainingMs] = useState<number | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasHydratedDraftRef = useRef(false);
+  const hasLocalEditsRef = useRef(false);
+  const contentRef = useRef('');
+  const lastSavedContentRef = useRef('');
+  const lockedContentRef = useRef('');
+  const continuationVersionRef = useRef(0);
+  const pendingSaveContentRef = useRef<{ content: string; continuationVersion: number } | null>(null);
+  const saveInFlightRef = useRef(false);
+  const sessionStatusRef = useRef<string | null>(null);
+  const isMountedRef = useRef(true);
   const writingTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const openedFeedbackKeyRef = useRef('');
 
-  const fetchStudentState = useCallback(async () => {
+  const fetchStudentState = useCallback(async (signal?: AbortSignal) => {
     if (!sessionId || !studentId || !studentToken) {
       navigate('/student');
       return;
@@ -222,46 +248,104 @@ export default function StudentEditor() {
       studentToken
     });
 
-    const response = await fetch(`/api/student/state?${params.toString()}`);
-    const body = await response.json().catch(() => ({}));
+    try {
+      const response = await fetch(`/api/student/state?${params.toString()}`, { signal });
+      const body = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
-      setLoadError(body.error || 'Could not load your writing session.');
-      return;
-    }
-
-    setLoadError('');
-    setSession(body.session);
-    setEssay(body.essay);
-    setFeedback(body.feedback);
-    setPeerComments(body.peerComments || []);
-    setPeerEssay(body.peerEssay || null);
-    setMyComments(body.myComments || []);
-
-    if (body.essay) {
-      const nextContent = splitContinuationContent(body.essay.content || '');
-      setLockedContent(previous => {
-        if (previous !== nextContent.locked) {
-          setContent(nextContent.current);
-          return nextContent.locked;
-        }
-        return previous;
-      });
-
-      if (content === '' && nextContent.current) {
-        setContent(nextContent.current);
+      if (!response.ok) {
+        setLoadError(body.error || 'Could not load your writing session.');
+        return;
       }
-    }
 
-    if (body.essay?.updated_at) {
-      setLastSaved(new Date(body.essay.updated_at));
+      setLoadError('');
+      sessionStatusRef.current = body.session?.status || null;
+      setSession(body.session);
+      setEssay(body.essay);
+      setFeedback(body.feedback);
+      setPeerComments(body.peerComments || []);
+      setPeerEssay(body.peerEssay || null);
+      setMyComments(body.myComments || []);
+
+      if (body.essay) {
+        const nextContent = splitContinuationContent(body.essay.content || '');
+        const hasNewContinuation = hasHydratedDraftRef.current
+          && nextContent.locked !== lockedContentRef.current;
+
+        if (!hasHydratedDraftRef.current) {
+          lockedContentRef.current = nextContent.locked;
+          setLockedContent(nextContent.locked);
+
+          if (!hasLocalEditsRef.current) {
+            contentRef.current = nextContent.current;
+            lastSavedContentRef.current = nextContent.current;
+            setContent(nextContent.current);
+          }
+
+          hasHydratedDraftRef.current = true;
+        } else if (hasNewContinuation) {
+          const recoveryText = hasLocalEditsRef.current
+            ? getContinuationRecoveryText(
+                lastSavedContentRef.current,
+                contentRef.current,
+                nextContent.locked
+              )
+            : '';
+          const recoveredDraft = combineContinuationDraft(nextContent.current, recoveryText);
+
+          continuationVersionRef.current += 1;
+          pendingSaveContentRef.current = null;
+          if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+            saveTimeoutRef.current = null;
+          }
+
+          lockedContentRef.current = nextContent.locked;
+          setLockedContent(nextContent.locked);
+          contentRef.current = recoveredDraft;
+          lastSavedContentRef.current = nextContent.current;
+          setContent(recoveredDraft);
+          hasLocalEditsRef.current = recoveredDraft !== nextContent.current;
+          setSaveError('');
+
+          if (hasLocalEditsRef.current) {
+            pendingSaveContentRef.current = {
+              content: recoveredDraft,
+              continuationVersion: continuationVersionRef.current
+            };
+          }
+        }
+      }
+
+      if (body.essay?.updated_at) {
+        setLastSaved(new Date(body.essay.updated_at));
+      }
+    } catch (error) {
+      if (signal?.aborted) return;
+      setLoadError(error instanceof Error ? error.message : 'Could not load your writing session.');
     }
-  }, [content, navigate, sessionId, studentId, studentToken]);
+  }, [navigate, sessionId, studentId, studentToken]);
 
   useEffect(() => {
-    fetchStudentState();
-    const interval = window.setInterval(fetchStudentState, 2000);
-    return () => window.clearInterval(interval);
+    let cancelled = false;
+    let pollTimeout: number | null = null;
+    let controller: AbortController | null = null;
+
+    const poll = async () => {
+      controller = new AbortController();
+      await fetchStudentState(controller.signal);
+
+      if (!cancelled) {
+        pollTimeout = window.setTimeout(poll, 2000);
+      }
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      if (pollTimeout !== null) window.clearTimeout(pollTimeout);
+    };
   }, [fetchStudentState]);
 
   useEffect(() => {
@@ -303,37 +387,119 @@ export default function StudentEditor() {
   // Autosave logic
   const saveEssay = useCallback(async (newContent: string) => {
     if (!essay || !session || session.status !== 'active' || timerRemainingMs === 0) return;
-    const mergedContent = mergeContinuationContent(lockedContent, newContent);
+    pendingSaveContentRef.current = {
+      content: newContent,
+      continuationVersion: continuationVersionRef.current
+    };
+    if (saveInFlightRef.current) return;
 
+    saveInFlightRef.current = true;
     setSaving(true);
-    const response = await fetch('/api/student/essay', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sessionId,
-        studentId,
-        studentToken,
-        content: mergedContent
-      })
-    });
+    setSaveError('');
+    let failedAttempts = 0;
 
-    if (response.ok) {
-      const body = await response.json().catch(() => ({}));
-      if (body.essay) setEssay(body.essay);
-      setLastSaved(new Date());
+    try {
+      while (isMountedRef.current && pendingSaveContentRef.current !== null) {
+        if (sessionStatusRef.current !== 'active') {
+          setSaveError('Unsaved changes. Keep this page open.');
+          break;
+        }
+
+        const saveBeingProcessed = pendingSaveContentRef.current;
+        pendingSaveContentRef.current = null;
+
+        if (saveBeingProcessed.continuationVersion !== continuationVersionRef.current) {
+          continue;
+        }
+
+        try {
+          const mergedContent = mergeContinuationContent(lockedContentRef.current, saveBeingProcessed.content);
+          const response = await fetch('/api/student/essay', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId,
+              studentId,
+              studentToken,
+              content: mergedContent
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error('Could not save your writing.');
+          }
+
+          if (saveBeingProcessed.continuationVersion !== continuationVersionRef.current) {
+            continue;
+          }
+
+          const body = await response.json().catch(() => ({}));
+          if (body.essay) setEssay(body.essay);
+          lastSavedContentRef.current = saveBeingProcessed.content;
+          if (contentRef.current === saveBeingProcessed.content && pendingSaveContentRef.current === null) {
+            hasLocalEditsRef.current = false;
+          }
+          setLastSaved(new Date());
+          setSaveError('');
+          failedAttempts = 0;
+        } catch {
+          if (saveBeingProcessed.continuationVersion !== continuationVersionRef.current) {
+            continue;
+          }
+
+          if (pendingSaveContentRef.current === null) {
+            pendingSaveContentRef.current = saveBeingProcessed;
+          }
+
+          if (sessionStatusRef.current !== 'active') {
+            setSaveError('Unsaved changes. Keep this page open.');
+            break;
+          }
+
+          failedAttempts += 1;
+          if (failedAttempts >= 3) {
+            setSaveError('Save failed. Keep this page open.');
+          }
+
+          const retryDelay = Math.min(500 * (2 ** (failedAttempts - 1)), 8000);
+          await new Promise(resolve => window.setTimeout(resolve, retryDelay));
+        }
+      }
+    } finally {
+      saveInFlightRef.current = false;
+      if (isMountedRef.current) setSaving(false);
     }
-    setSaving(false);
-  }, [essay, lockedContent, session, sessionId, studentId, studentToken, timerRemainingMs]);
+  }, [essay, session, sessionId, studentId, studentToken, timerRemainingMs]);
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
+    hasLocalEditsRef.current = true;
+    contentRef.current = val;
     setContent(val);
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      saveEssay(val);
+      void saveEssay(val);
     }, 750);
   };
+
+  useEffect(() => {
+    if (
+      session?.status === 'active'
+      && pendingSaveContentRef.current !== null
+      && !saveInFlightRef.current
+    ) {
+      void saveEssay(pendingSaveContentRef.current.content);
+    }
+  }, [saveEssay, session?.status]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
 
   const addPeerComment = async (commentText: string, paragraphIndex: number, lineIndex: number) => {
     if (!peerEssay) return;
@@ -451,10 +617,17 @@ export default function StudentEditor() {
             </div>
           )}
           <div className="h-8 w-px bg-slate-200"></div>
-          {session.status === 'active' && (
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
-              {saving ? <Loader2 className="w-3 h-3 animate-spin text-brand-500" /> : <Save className="w-3 h-3" />}
-              {saving ? 'Syncing...' : lastSaved ? `Last Saved ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Drafting'}
+          {(session.status === 'active' || saveError) && (
+            <div className={cn(
+              "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest",
+              saveError ? "text-red-600" : "text-slate-400"
+            )}>
+              {saveError
+                ? <AlertCircle className="w-3 h-3" />
+                : saving
+                  ? <Loader2 className="w-3 h-3 animate-spin text-brand-500" />
+                  : <Save className="w-3 h-3" />}
+              {saveError || (saving ? 'Syncing...' : lastSaved ? `Last Saved ${lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Drafting')}
             </div>
           )}
           <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 font-black text-xs border border-slate-200">
